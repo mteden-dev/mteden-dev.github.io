@@ -1,7 +1,7 @@
 /**
  * Obsługa API
  */
-const ApiService = {
+export const ApiService = {
     /**
      * Pobieranie danych punktów
      * @param {string} countryCode - Kod kraju (pl, other, all)

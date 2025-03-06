@@ -1,10 +1,10 @@
 // Import required services
-import { ApiService } from './apiService.js';
-import { MapService } from './mapService.js';
-import { MarkersService } from './markersService.js';
-import { SearchService } from './searchService.js';
-import { UIService } from './uiService.js';
-import { IntegrationService } from './integrationService.js';
+import { ApiService } from './api.js';
+import { MapService } from './map.js';
+import { MarkersService } from './markers.js';
+import { SearchService } from './search.js';
+import { UIService } from './ui.js';
+import { IntegrationService } from './integration.js';
 import { Utils } from './utils.js';
 import { Config } from './config.js';
 

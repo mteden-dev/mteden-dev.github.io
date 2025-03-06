@@ -1,7 +1,7 @@
 /**
  * Konfiguracja aplikacji
  */
-const Config = {
+export const Config = {
     // Konfiguracja API
     api: {
         urls: {

@@ -1,7 +1,7 @@
 /**
  * Obsługa wyszukiwania
  */
-const SearchService = {
+export const SearchService = {
     autocompleteData: [],  // Dane dla autouzupełniania
     searchIndex: [],       // Indeks wyszukiwania
     lastQuery: '',         // Ostatnie zapytanie

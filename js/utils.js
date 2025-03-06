@@ -1,7 +1,7 @@
 /**
  * Funkcje narzędziowe (utilities)
  */
-const Utils = {
+export const Utils = {
     /**
      * Aktualizacja paska statusu
      * @param {string} message - Wiadomość do wyświetlenia

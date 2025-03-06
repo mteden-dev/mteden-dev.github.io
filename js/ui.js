@@ -1,7 +1,7 @@
 /**
  * Obsługa interfejsu użytkownika
  */
-const UIService = {
+export const UIService = {
     /**
      * Inicjalizacja UI
      */

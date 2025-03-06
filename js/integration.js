@@ -1,7 +1,7 @@
 /**
  * Serwis integracji z zewnętrznymi systemami
  */
-const IntegrationService = {
+export const IntegrationService = {
     // Parametry przekazane do aplikacji
     params: {},
     
