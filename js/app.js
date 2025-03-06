@@ -254,8 +254,7 @@ class App {
                 }
                 
                 if (typeof this.markersService.addMarkers === 'function') {
-                    const cityFilter = this.citySelector ? this.citySelector.value : 'all';
-                    this.markersService.addMarkers(cityFilter);
+                    this.markersService.addMarkers(points);
                 } else {
                     console.error('MarkersService.addMarkers method not available');
                 }
