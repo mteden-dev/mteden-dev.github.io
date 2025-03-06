@@ -1,28 +1,52 @@
+console.log('Loading App');
+
+// Sprawdź dostępność globalnych obiektów
+console.log('Global objects available:', {
+    Config: typeof Config !== 'undefined',
+    Utils: typeof Utils !== 'undefined',
+    MapService: typeof MapService !== 'undefined',
+    ApiService: typeof ApiService !== 'undefined',
+    MarkersService: typeof MarkersService !== 'undefined'
+});
+
 /**
  * Główny moduł aplikacji
  */
 class App {
     constructor() {
+        // Sprawdzenie dostępności zależności
+        if (typeof Utils === 'undefined') {
+            console.error('Utils is not defined! Make sure utils.js is loaded before app.js');
+        }
+        
         // Cache DOM elements
         this.countrySelector = document.getElementById('country-filter');
         this.citySelector = document.getElementById('city-filter');
         
-        // Dependencies (now globally available)
-        this.apiService = ApiService;
-        this.mapService = MapService;
-        this.markersService = MarkersService;
-        this.searchService = SearchService;
-        this.uiService = UIService;
-        this.integrationService = IntegrationService;
+        // Bezpieczne przypisanie zależności
+        this.apiService = typeof ApiService !== 'undefined' ? ApiService : null;
+        this.mapService = typeof MapService !== 'undefined' ? MapService : null;
+        this.markersService = typeof MarkersService !== 'undefined' ? MarkersService : null;
+        this.searchService = typeof SearchService !== 'undefined' ? SearchService : null;
+        this.uiService = typeof UIService !== 'undefined' ? UIService : null;
+        this.integrationService = typeof IntegrationService !== 'undefined' ? IntegrationService : null;
     }
     
     /**
      * Inicjalizacja aplikacji
      */
     async initialize() {
+        console.log('Initializing application');
+        
         try {
+            // Sprawdź czy wszystkie serwisy są dostępne
+            if (!this.mapService) throw new Error('MapService not available');
+            if (!this.apiService) throw new Error('ApiService not available');
+            
             // Inicjalizacja integracji (jako pierwszy, aby odczytać parametry)
-            this.integrationService.initialize();
+            if (this.integrationService) {
+                this.integrationService.initialize();
+            }
             
             // Inicjalizacja pozostałych serwisów
             this.mapService.initialize();
@@ -41,6 +65,13 @@ class App {
             } else {
                 // Jeśli podano parametry, wczytaj punkty dla kraju
                 await this.loadPointsForSelectedCountry();
+            }
+            
+            if (typeof Utils !== 'undefined') {
+                // Użyj Utils tylko jeśli jest zdefiniowany
+                console.log('Utils available, using them');
+            } else {
+                console.error('Utils not available');
             }
         } catch (error) {
             console.error('Błąd podczas inicjalizacji aplikacji:', error);

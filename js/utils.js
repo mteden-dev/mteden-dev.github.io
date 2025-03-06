@@ -1,6 +1,6 @@
-/**
- * Funkcje narzędziowe (utilities)
- */
+console.log('Defining Utils global object');
+
+// Zdefiniuj Utils jako obiekt globalny
 export const Utils = {
     /**
      * Aktualizacja paska statusu
@@ -56,5 +56,20 @@ export const Utils = {
         
         const regex = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
         return text.replace(regex, '<strong>$1</strong>');
+    },
+    
+    formatDate(date) {
+        return new Date(date).toLocaleDateString('pl-PL');
+    },
+    
+    debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
     }
 };
+
+// Sprawdź czy Utils jest dostępny
+console.log('Utils defined:', typeof Utils !== 'undefined');

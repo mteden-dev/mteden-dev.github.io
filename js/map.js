@@ -11,62 +11,66 @@ const MapService = {
     markers: [],
     
     initialize() {
-        // Sprawdź czy Config jest dostępny
-        if (typeof Config === 'undefined') {
-            console.error('Config is not defined!');
-            return;
-        }
-        
         console.log('Initializing map service');
         
-        // Inicjalizacja mapy
-        this.map = L.map('map').setView(
-            Config.mapDefaults.center, 
-            Config.mapDefaults.zoom
-        );
-        
-        // Dodanie warstwy kafli OpenStreetMap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(this.map);
-        
-        // Inicjalizacja klastra markerów
-        this.markerCluster = L.markerClusterGroup();
-        this.map.addLayer(this.markerCluster);
-        
-        // Dopasuj widok do wybranego kraju
-        this.fitToCountry('pl');
-        
-        return this.map;
+        try {
+            // Inicjalizacja mapy
+            this.map = L.map('map').setView(
+                Config.mapDefaults.center, 
+                Config.mapDefaults.zoom
+            );
+            
+            // Dodanie warstwy kafli OpenStreetMap
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(this.map);
+            
+            // Inicjalizacja klastra markerów
+            this.markerCluster = L.markerClusterGroup();
+            this.map.addLayer(this.markerCluster);
+            
+            // Dopasuj widok do wybranego kraju
+            this.fitToCountry('pl');
+            
+            // Dopiero teraz inicjalizuj kontrolki, gdy mapa jest gotowa
+            setTimeout(() => {
+                this.initViewportControl();
+            }, 100);
+            
+            return this.map;
+        } catch (error) {
+            console.error('Error initializing map:', error);
+        }
     },
     
     /**
      * Inicjalizacja kontrolki "Pokaż punkty w tej okolicy"
      */
-    initViewportControl: function() {
-        // Utwórz niestandardową kontrolkę Leaflet
-        this.viewportControl = L.control({ position: 'topcenter' });
-        
-        this.viewportControl.onAdd = function() {
-            const container = L.DomUtil.create('div', 'map-viewport-control');
-            container.innerHTML = '<button id="load-viewport-btn">Pokaż punkty w tym obszarze</button>';
-            container.style.display = 'none'; // Ukryta domyślnie
-            return container;
-        };
-        
-        // Dodaj kontrolkę do mapy
-        this.viewportControl.addTo(this.map);
-        
-        // Dodaj nasłuchiwanie dla przycisku
-        setTimeout(() => {
-            const button = document.getElementById('load-viewport-btn');
-            if (button) {
-                button.addEventListener('click', () => {
-                    this.loadPointsInViewport();
-                    this.hideViewportControl();
-                });
+    initViewportControl() {
+        try {
+            // Sprawdź, czy mapa jest zainicjalizowana
+            if (!this.map) {
+                console.error('Map not initialized yet');
+                return;
             }
-        }, 500);
+            
+            // Inicjalizacja kontrolki
+            // Upewnij się, że obiekt kontrolki jest poprawnie utworzony przed addTo()
+            const viewportControl = L.control({position: 'topright'});
+            
+            viewportControl.onAdd = function(map) {
+                const container = L.DomUtil.create('div', 'viewport-control');
+                container.innerHTML = '<button>Reset View</button>';
+                container.onclick = function() {
+                    MapService.fitToCountry('pl');
+                };
+                return container;
+            };
+            
+            viewportControl.addTo(this.map);
+        } catch (error) {
+            console.error('Error initializing viewport control:', error);
+        }
     },
     
     /**
