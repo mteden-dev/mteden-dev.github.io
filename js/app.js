@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
         console.error('Failed to initialize application:', error);
         
-        // Wyświetl użytkownikowi informację o błędzie
+        // Wyświetl użytkownikowi informację o błędzie1
         const statusText = document.getElementById('status-text');
         if (statusText) {
             statusText.textContent = 'Błąd podczas inicjalizacji aplikacji: ' + error.message;
