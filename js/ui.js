@@ -91,7 +91,9 @@ const UIService = {
         });
         
         // Obsługa panelu wyszukiwania
-        document.getElementById('search-toggle').addEventListener('click', this.toggleSearchPanel);
+        document.getElementById('search-toggle').addEventListener('click', () => {
+            this.toggleSearchPanel();
+        });
     },
     
     /**
