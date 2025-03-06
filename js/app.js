@@ -9,6 +9,16 @@ console.log('Global objects available:', {
     MarkersService: typeof MarkersService !== 'undefined'
 });
 
+// Funkcja pomocnicza do bezpiecznego używania Utils
+function safeUseUtils(callback, fallback) {
+    if (typeof Utils !== 'undefined') {
+        return callback(Utils);
+    } else {
+        console.error('Utils not available, using fallback');
+        return fallback ? fallback() : null;
+    }
+}
+
 /**
  * Główny moduł aplikacji
  */
@@ -127,45 +137,46 @@ class App {
     /**
      * Ładowanie punktów dla wybranego kraju
      */
-    async loadPointsForSelectedCountry() {
+    loadPointsForSelectedCountry() {
+        const countryCode = this.countrySelector.value;
+        console.log('Loading points for country:', countryCode);
+        
         try {
-            const selectedCountry = this.countrySelector.value;
+            // Bezpieczne użycie Utils
+            const debounce = safeUseUtils(
+                (utils) => utils.debounce,
+                () => (fn) => fn  // Prosta implementacja fallbackowa
+            );
             
-            Utils.updateStatus('Pobieranie punktów...', true);
+            // Używanie debounce tylko jeśli jest dostępne
+            const debouncedUpdate = debounce ? 
+                debounce(() => this.updateCityFilter(), 300) : 
+                () => this.updateCityFilter();
             
-            // Uwzględnij ewentualnego przewoźnika z parametrów
-            let points;
-            const carrier = this.integrationService.params.carrier;
-            if (carrier) {
-                points = await this.apiService.fetchPointsForCarrier(
-                    selectedCountry,
-                    carrier
-                );
-            } else {
-                // Standardowe pobieranie punktów
-                points = await this.apiService.fetchPoints(selectedCountry);
-            }
-            
-            if (!points || points.length === 0) {
-                throw new Error('Nie znaleziono punktów dla wybranego kraju');
-            }
-            
-            // Ustaw punkty w serwisie markerów
-            this.markersService.setPoints(points);
-            
-            // Zapisz punkty do localStorage dla szybkiego dostępu przy następnym uruchomieniu
-            this.savePointsToLocalStorage(points);
-            
-            // Odśwież mapę
-            this.refreshMap();
-            
-            // Zaktualizuj indeks wyszukiwania
-            this.searchService.buildSearchIndex();
-            
-            Utils.updateStatus(`Załadowano ${points.length} punktów`, false);
+            // Załaduj punkty z API
+            this.apiService.getPoints(countryCode)
+                .then(points => {
+                    if (!points || !points.length) {
+                        console.warn('No points received from API');
+                        return [];
+                    }
+                    
+                    return points;
+                })
+                .then(points => {
+                    this.markersService.clearMarkers();
+                    this.markersService.addMarkers(points);
+                    
+                    // Aktualizacja filtra miast
+                    debouncedUpdate();
+                    
+                    return points;
+                })
+                .catch(error => {
+                    console.error('Error loading points:', error);
+                });
         } catch (error) {
-            console.error('Błąd podczas ładowania punktów:', error);
-            Utils.updateStatus(`Nie udało się załadować punktów: ${error.message}`, false);
+            console.error('Error in loadPointsForSelectedCountry:', error);
         }
     }
     
@@ -268,6 +279,10 @@ class App {
 
 // Uruchomienie aplikacji po załadowaniu DOM
 document.addEventListener('DOMContentLoaded', () => {
-    const app = new App();
-    app.initialize();
+    try {
+        const app = new App();
+        app.initialize();
+    } catch (error) {
+        console.error('Failed to initialize application:', error);
+    }
 });

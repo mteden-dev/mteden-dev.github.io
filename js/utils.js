@@ -1,7 +1,10 @@
+/**
+ * Funkcje narzędziowe (utilities)
+ */
 console.log('Defining Utils global object');
 
-// Zdefiniuj Utils jako obiekt globalny
-export const Utils = {
+// USUŃ EXPORT - po prostu zdefiniuj jako zmienną globalną
+const Utils = {
     /**
      * Aktualizacja paska statusu
      * @param {string} message - Wiadomość do wyświetlenia
@@ -60,6 +63,10 @@ export const Utils = {
     
     formatDate(date) {
         return new Date(date).toLocaleDateString('pl-PL');
+    },
+    
+    formatDateTime(date) {
+        return new Date(date).toLocaleString('pl-PL');
     },
     
     debounce(func, wait) {
