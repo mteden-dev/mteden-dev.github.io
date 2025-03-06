@@ -1,3 +1,5 @@
+import { Config } from './config.js';
+
 /**
  * Serwis integracji z zewnętrznymi systemami
  */
@@ -12,6 +14,7 @@ export const IntegrationService = {
      * Inicjalizacja serwisu integracji
      */
     initialize: function() {
+        console.log('Initializing integration service with config:', Config);
         this.parseUrlParams();
         
         // Ustaw tryb aplikacji
