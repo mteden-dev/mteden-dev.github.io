@@ -87,6 +87,13 @@ class App {
                 console.error('MapService or initialize method not available');
             }
             
+            // Add explicit UIService initialization
+            if (this.uiService && typeof this.uiService.initialize === 'function') {
+                this.uiService.initialize();
+            } else {
+                console.error('UIService or initialize method not available');
+            }
+            
             // Załaduj punkty dla wybranego kraju
             await this.loadPointsForSelectedCountry();
             

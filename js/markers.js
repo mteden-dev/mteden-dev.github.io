@@ -28,40 +28,44 @@ const MarkersService = {
      * @param {string|Array} cityFilterOrPoints - Filtr miasta lub tablica punktów
      */
     addMarkers: function(cityFilterOrPoints) {
-        // Usuń istniejące markery
+        console.log('Adding markers with:', cityFilterOrPoints);
+        
+        // Remove existing markers
         if (this.markerClusterGroup) {
             MapService.map.removeLayer(this.markerClusterGroup);
         }
         
-        // Utwórz nową grupę markerów
+        // Create new marker cluster group
         this.markerClusterGroup = L.markerClusterGroup(Config.map.clusterOptions);
         
         let filteredPoints;
         
-        // Obsługa różnych typów parametrów
+        // Handle different parameter types
         if (Array.isArray(cityFilterOrPoints)) {
-            // Jeśli otrzymaliśmy bezpośrednio tablicę punktów
+            console.log(`Received array of ${cityFilterOrPoints.length} points`);
             filteredPoints = cityFilterOrPoints;
-            
-            // Zaktualizuj również allPoints, aby zachować referencję
             this.allPoints = cityFilterOrPoints;
         } else {
-            // Jeśli otrzymaliśmy filtr miasta jako string
+            console.log('Received city filter:', cityFilterOrPoints);
             const cityFilter = cityFilterOrPoints;
             filteredPoints = cityFilter === 'all'
                 ? this.allPoints
                 : this.allPoints.filter(point => point.city === cityFilter);
+            
+            console.log(`Filtered to ${filteredPoints.length} points for city: ${cityFilter}`);
         }
         
-        // Dodaj markery dla przefiltrowanych punktów
+        console.log(`Adding ${filteredPoints.length} markers to map`);
+        
+        // Add markers for filtered points
         filteredPoints.forEach(point => {
             this.addSingleMarker(point);
         });
         
-        // Dodaj grupę markerów do mapy
+        // Add marker cluster group to map
         MapService.map.addLayer(this.markerClusterGroup);
         
-        // Aktualizuj licznik punktów
+        // Update point counter
         Utils.updateStatus(`Wyświetlono ${filteredPoints.length} punktów`, false);
     },
     
