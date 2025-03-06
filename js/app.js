@@ -1,13 +1,3 @@
-// Import required services
-import { ApiService } from './api.js';
-import { MapService } from './map.js';
-import { MarkersService } from './markers.js';
-import { SearchService } from './search.js';
-import { UIService } from './ui.js';
-import { IntegrationService } from './integration.js';
-import { Utils } from './utils.js';
-import { Config } from './config.js';
-
 /**
  * Główny moduł aplikacji
  */
@@ -17,7 +7,7 @@ class App {
         this.countrySelector = document.getElementById('country-filter');
         this.citySelector = document.getElementById('city-filter');
         
-        // Dependencies (can be injected for better testability)
+        // Dependencies (now globally available)
         this.apiService = ApiService;
         this.mapService = MapService;
         this.markersService = MarkersService;
@@ -26,7 +16,7 @@ class App {
         this.integrationService = IntegrationService;
     }
     
-    /**ś
+    /**
      * Inicjalizacja aplikacji
      */
     async initialize() {

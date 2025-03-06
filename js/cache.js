@@ -1,7 +1,7 @@
 /**
  * Obsługa cachowania punktów
  */
-export const CacheService = {
+const CacheService = {
     /**
      * Zapisywanie punktów do pliku
      */

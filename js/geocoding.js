@@ -1,7 +1,7 @@
 /**
  * Obsługa geokodowania (zamiana adresów na współrzędne)
  */
-export const GeocodingService = {
+const GeocodingService = {
     addressMarker: null,
     
     /**

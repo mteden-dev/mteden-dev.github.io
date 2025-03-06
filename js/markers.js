@@ -1,7 +1,7 @@
 /**
  * Serwis obsługujący markery na mapie
  */
-export const MarkersService = {
+const MarkersService = {
     // Wszystkie punkty
     allPoints: [],
     

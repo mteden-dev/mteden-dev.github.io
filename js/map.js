@@ -1,7 +1,7 @@
 /**
  * Serwis obsługujący mapę
  */
-export const MapService = {
+const MapService = {
     // Obiekt mapy Leaflet
     map: null,
     

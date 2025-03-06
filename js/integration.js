@@ -1,10 +1,7 @@
-import { Config } from './config.js';
-import { MapService } from './map.js';
-
 /**
  * Serwis integracji z zewnętrznymi systemami
  */
-export const IntegrationService = {
+const IntegrationService = {
     // Parametry przekazane do aplikacji
     params: {},
     
