@@ -93,7 +93,7 @@ class App {
             // Dodaj obsługę zdarzeń
             this.setupEventListeners();
             
-            // Inicjalizacja serwisu integracji
+            // Inicjalizacja serwisu integracji ORAZ załadowanie punktów
             if (this.integrationService && typeof this.integrationService.initialize === 'function') {
                 this.integrationService.initialize();
             }

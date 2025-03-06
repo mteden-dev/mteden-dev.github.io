@@ -307,8 +307,9 @@ select {
     z-index: 1000;
 }
 
+/* Style dla przycisku viewport-points-btn można pozostawić (nie będzie używany) */
 .viewport-points-btn {
-    display: none;
+    display: none; /* Ukryj całkowicie */
     position: absolute;
     top: 10px;
     left: 50%;

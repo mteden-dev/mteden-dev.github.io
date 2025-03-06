@@ -26,11 +26,11 @@ const IntegrationService = {
             this.setupModalMode();
         }
         
-        // Obsługa przycisku "Pokaż punkty w tej okolicy"
-        this.setupViewportPointsButton();
-        
         // Dodaj nasłuchiwanie zmian widoku mapy
         this.setupMapMoveEndEvent();
+        
+        // Dodaj automatyczne ładowanie punktów po inicjalizacji
+        this.loadPointsInViewport();
     },
     
     /**
@@ -141,10 +141,7 @@ const IntegrationService = {
         console.log('Setting up map move end event');
         if (MapService.map) {
             MapService.map.on('moveend', () => {
-                // Jeśli mapa została przesunięta przez użytkownika, a nie przez autocentrowanie
-                if (!MapService.map._enforcingCenter) {
-                    this.showViewportPointsButton();
-                }
+                // Nie pokazujemy już przycisku po przesunięciu mapy
             });
             
             // Dodatkowe flagi do śledzenia interakcji użytkownika
