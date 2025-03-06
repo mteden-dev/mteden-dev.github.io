@@ -100,21 +100,25 @@ const SearchService = {
      * Konfiguracja nasłuchiwania zdarzeń
      */
     setupEventListeners: function() {
-        const searchInput = document.getElementById('unified-search-input');
+        const unifiedSearchInput = document.getElementById('unified-search-input');
         const searchBtn = document.getElementById('search-btn');
         
-        // Obsługa wprowadzania tekstu
-        searchInput.addEventListener('input', this.handleInputChange.bind(this));
-        
-        // Obsługa przycisku wyszukiwania
-        searchBtn.addEventListener('click', this.handleSearch.bind(this));
-        
-        // Obsługa klawisza Enter
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.handleSearch();
+        if (unifiedSearchInput) {
+            // Obsługa wprowadzania tekstu
+            unifiedSearchInput.addEventListener('input', this.handleInputChange.bind(this));
+            
+            // Obsługa przycisku wyszukiwania
+            if (searchBtn) {
+                searchBtn.addEventListener('click', this.handleSearch.bind(this));
             }
-        });
+            
+            // Obsługa klawisza Enter
+            unifiedSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleSearch();
+                }
+            });
+        }
     },
     
     /**

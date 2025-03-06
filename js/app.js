@@ -99,6 +99,15 @@ class App {
                 this.searchService.initNewSearchInterface();
             }
             
+            // Add this right after the map initialization in app.js initialize method
+
+            // Create search elements if they don't exist yet
+            if (SearchService && typeof SearchService.createSearchElements === 'function') {
+                SearchService.createSearchElements();
+            } else {
+                console.error('SearchService.createSearchElements not available');
+            }
+            
             // Załaduj punkty dla wybranego kraju
             await this.loadPointsForSelectedCountry();
             
