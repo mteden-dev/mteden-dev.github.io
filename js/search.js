@@ -365,6 +365,7 @@ const SearchService = {
         
         if (!searchInput || !locationButton) {
             console.error("New search interface elements not found");
+            this.createSearchElements(); // Try to create them
             return;
         }
         
@@ -375,9 +376,8 @@ const SearchService = {
             autocompleteContainer = document.createElement('div');
             autocompleteContainer.id = 'map-search-autocomplete';
             autocompleteContainer.className = 'autocomplete-container';
-            autocompleteContainer.style.display = 'none';
-            
-            document.querySelector('.map-search-container').appendChild(autocompleteContainer);
+            autocompleteContainer.style.cssText = 'display:none;position:absolute;top:48px;left:70px;width:240px;background:white;border:1px solid #ddd;border-radius:4px;box-shadow:0 2px 5px rgba(0,0,0,0.2);max-height:300px;overflow-y:auto;z-index:1002;';
+            document.body.appendChild(autocompleteContainer);
         }
         
         console.log("Setting up search input events");
@@ -650,40 +650,66 @@ const SearchService = {
     createSearchElements: function() {
         console.log("Creating search elements in DOM");
         
+        // Check if elements already exist
+        if (document.getElementById('map-search-input')) {
+            console.log("Search elements already exist, skipping creation");
+            this.initNewSearchInterface();
+            return;
+        }
+        
         // Create the container
         const searchContainer = document.createElement('div');
         searchContainer.className = 'map-search-container';
+        searchContainer.style.cssText = 'position:absolute;top:12px;left:70px;z-index:1001;display:flex;';
         
         // Create the search input
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.id = 'map-search-input';
         searchInput.placeholder = 'Wyszukaj punkt lub adres...';
+        searchInput.style.cssText = 'height:36px;width:240px;padding:0 10px;border:2px solid rgba(0,0,0,0.2);border-radius:4px;margin-right:8px;';
         
         // Create the location button
         const locationButton = document.createElement('button');
         locationButton.id = 'location-button';
         locationButton.title = 'Pokaż moją lokalizację';
+        locationButton.style.cssText = 'width:36px;height:36px;border-radius:50%;border:2px solid rgba(0,0,0,0.2);background-color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;';
         
         // Create the location icon inside the button
         const locationIcon = document.createElement('span');
         locationIcon.className = 'location-icon';
+        locationIcon.style.cssText = 'width:18px;height:18px;background-color:#3498db;border-radius:50%;position:relative;';
+        
+        // Add the inner dot to the location icon
+        const innerDot = document.createElement('span');
+        innerDot.style.cssText = 'position:absolute;width:8px;height:8px;background-color:white;border-radius:50%;top:5px;left:5px;';
+        locationIcon.appendChild(innerDot);
+        
         locationButton.appendChild(locationIcon);
         
         // Add elements to the container
         searchContainer.appendChild(searchInput);
         searchContainer.appendChild(locationButton);
         
-        // Add the container to the map container
-        const mapContainer = document.getElementById('map');
-        if (mapContainer) {
-            mapContainer.appendChild(searchContainer);
-            console.log("Search elements added to map container");
-            
-            // Now initialize the search interface
-            this.initNewSearchInterface();
-        } else {
-            console.error("Map container not found, cannot add search elements");
+        // Remove any existing search container to avoid duplicates
+        const existingContainer = document.querySelector('.map-search-container');
+        if (existingContainer) {
+            existingContainer.remove();
         }
+        
+        // Add the container directly to the body for maximum z-index
+        document.body.appendChild(searchContainer);
+        
+        console.log("Search elements added to body");
+        
+        // Add autocomplete container
+        const autocompleteContainer = document.createElement('div');
+        autocompleteContainer.id = 'map-search-autocomplete';
+        autocompleteContainer.className = 'autocomplete-container';
+        autocompleteContainer.style.cssText = 'display:none;position:absolute;top:48px;left:70px;width:240px;background:white;border:1px solid #ddd;border-radius:4px;box-shadow:0 2px 5px rgba(0,0,0,0.2);max-height:300px;overflow-y:auto;z-index:1002;';
+        document.body.appendChild(autocompleteContainer);
+        
+        // Now initialize the search interface
+        this.initNewSearchInterface();
     }
 };

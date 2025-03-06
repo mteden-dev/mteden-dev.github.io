@@ -6,6 +6,14 @@ const UIService = {
      * Inicjalizacja UI
      */
     initialize: function() {
+        // Hide old search panel and toggle
+        const oldSearchPanel = document.getElementById('search-panel');
+        const oldSearchToggle = document.getElementById('search-toggle');
+        
+        if (oldSearchPanel) oldSearchPanel.style.display = 'none';
+        if (oldSearchToggle) oldSearchToggle.style.display = 'none';
+        
+        // Continue with normal initialization
         this.restoreUIState();
         this.initEventListeners();
     },

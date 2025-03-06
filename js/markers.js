@@ -35,8 +35,14 @@ const MarkersService = {
             MapService.map.removeLayer(this.markerClusterGroup);
         }
         
-        // Create new marker cluster group
-        this.markerClusterGroup = L.markerClusterGroup(Config.map.clusterOptions);
+        // Create new marker cluster group with explicit options
+        this.markerClusterGroup = L.markerClusterGroup({
+            maxClusterRadius: 80,
+            spiderfyOnMaxZoom: false,
+            disableClusteringAtZoom: 17,
+            chunkedLoading: true,
+            zoomToBoundsOnClick: true
+        });
         
         let filteredPoints;
         
@@ -57,10 +63,20 @@ const MarkersService = {
         
         console.log(`Adding ${filteredPoints.length} markers to map`);
         
+        // Debug: check first point to ensure it has coordinates
+        if (filteredPoints.length > 0) {
+            console.log('Sample point:', filteredPoints[0]);
+        }
+        
         // Add markers for filtered points
+        let addedMarkers = 0;
         filteredPoints.forEach(point => {
-            this.addSingleMarker(point);
+            if (point.latitude && point.longitude) {
+                this.addSingleMarker(point);
+                addedMarkers++;
+            }
         });
+        console.log(`Actually added ${addedMarkers} markers with valid coordinates`);
         
         // Add marker cluster group to map
         MapService.map.addLayer(this.markerClusterGroup);
