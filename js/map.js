@@ -1,47 +1,43 @@
 /**
  * Serwis obsługujący mapę
  */
+
+// Debugowanie globalnych zmiennych
+console.log('map.js loading, Config available?', typeof Config !== 'undefined');
+
 const MapService = {
-    // Obiekt mapy Leaflet
     map: null,
+    markerCluster: null,
+    markers: [],
     
-    // Kontrolka legendy
-    legendControl: null,
-    
-    // Stan przesunięcia mapy
-    mapMoved: false,
-    
-    // Kontrolka "Pokaż punkty w tej okolicy"
-    viewportControl: null,
-    
-    /**
-     * Inicjalizacja mapy
-     */
-    initialize: function() {
-        // Utwórz mapę
-        this.map = L.map('map', {
-            zoomControl: false,
-            attributionControl: false
-        });
+    initialize() {
+        // Sprawdź czy Config jest dostępny
+        if (typeof Config === 'undefined') {
+            console.error('Config is not defined!');
+            return;
+        }
         
-        // Dodaj kontrolki
-        L.control.zoom({ position: 'bottomright' }).addTo(this.map);
-        L.control.attribution({ position: 'bottomleft' }).addTo(this.map)
-            .setPrefix('').addAttribution('© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>');
+        console.log('Initializing map service');
         
-        // Dodaj warstwę kafelków (tiles)
+        // Inicjalizacja mapy
+        this.map = L.map('map').setView(
+            Config.mapDefaults.center, 
+            Config.mapDefaults.zoom
+        );
+        
+        // Dodanie warstwy kafli OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(this.map);
         
-        // Ustaw widok na Polskę (domyślnie)
+        // Inicjalizacja klastra markerów
+        this.markerCluster = L.markerClusterGroup();
+        this.map.addLayer(this.markerCluster);
+        
+        // Dopasuj widok do wybranego kraju
         this.fitToCountry('pl');
         
-        // Inicjalizuj kontrolkę "Pokaż punkty w tej okolicy"
-        this.initViewportControl();
-        
-        // Nasłuchuj zdarzeń mapy
-        this.initMapEvents();
+        return this.map;
     },
     
     /**
@@ -154,9 +150,21 @@ const MapService = {
      * Dostosowanie widoku mapy do wybranego kraju
      * @param {string} countryCode - Kod kraju
      */
-    fitToCountry: function(countryCode) {
-        const viewConfig = Config.map.defaultView[countryCode] || Config.map.defaultView.pl;
-        this.map.setView(viewConfig.center, viewConfig.zoom);
+    fitToCountry(countryCode) {
+        console.log('Fitting to country:', countryCode);
+        
+        // Dodaj zabezpieczenie
+        if (!Config || !Config.mapDefaults || !Config.mapDefaults.countryBounds) {
+            console.error('Config.mapDefaults.countryBounds is missing!');
+            return;
+        }
+        
+        const bounds = Config.mapDefaults.countryBounds[countryCode];
+        if (bounds) {
+            this.map.fitBounds(bounds);
+        } else {
+            console.warn(`No bounds defined for country: ${countryCode}`);
+        }
     },
     
     /**

@@ -1,3 +1,5 @@
+console.log('Defining Config');
+
 /**
  * Konfiguracja aplikacji
  */
@@ -37,6 +39,22 @@ const Config = {
         viewportSearchRadius: 0.1, // Promień w stopniach dla wyszukiwania punktów w widocznym obszarze
         cityZoom: 13, // Poziom przybliżenia dla miasta
         addressZoom: 16 // Poziom przybliżenia dla adresu
+    },
+    
+    // Domyślne wartości dla mapy
+    mapDefaults: {
+        center: [52.0689, 19.4803], // Środek Polski
+        zoom: 7,
+        minZoom: 6,
+        maxZoom: 18,
+        countryCodes: {
+            pl: 'pl',
+            fr: 'fr'
+        },
+        countryBounds: {
+            pl: [[49.0, 14.0], [55.0, 24.0]], // przybliżone granice Polski
+            fr: [[41.0, -5.0], [51.0, 10.0]]  // przybliżone granice Francji
+        }
     },
     
     // Konfiguracja wyszukiwania
