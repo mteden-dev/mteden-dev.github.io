@@ -1,4 +1,5 @@
 import { Config } from './config.js';
+import { MapService } from './map.js';
 
 /**
  * Serwis integracji z zewnętrznymi systemami
@@ -139,6 +140,8 @@ export const IntegrationService = {
      * Konfiguracja nasłuchiwania zmian widoku mapy
      */
     setupMapMoveEndEvent: function() {
+        // Teraz MapService jest dostępny
+        console.log('Setting up map move end event');
         if (MapService.map) {
             MapService.map.on('moveend', () => {
                 // Jeśli mapa została przesunięta przez użytkownika, a nie przez autocentrowanie
