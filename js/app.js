@@ -22,24 +22,52 @@ function safeUseUtils(callback, fallback) {
 /**
  * Główny moduł aplikacji
  */
+console.log('Loading App');
+
 class App {
     constructor() {
-        // Sprawdzenie dostępności zależności
-        if (typeof Utils === 'undefined') {
-            console.error('Utils is not defined! Make sure utils.js is loaded before app.js');
-        }
+        console.log('App constructor');
         
         // Cache DOM elements
         this.countrySelector = document.getElementById('country-filter');
         this.citySelector = document.getElementById('city-filter');
+        this.refreshBtn = document.getElementById('refresh-btn');
+        this.saveCacheBtn = document.getElementById('save-cache-btn');
+        this.loadCacheInput = document.getElementById('load-cache');
+        this.searchToggle = document.getElementById('search-toggle');
+        this.searchPanel = document.getElementById('search-panel');
+        this.searchInput = document.getElementById('unified-search-input');
+        this.searchBtn = document.getElementById('search-btn');
+        this.searchResults = document.getElementById('search-results');
+        this.searchResultsTitle = document.getElementById('search-results-title');
+        this.statusText = document.getElementById('status-text');
+        this.loadingIndicator = document.getElementById('loading-indicator');
         
-        // Bezpieczne przypisanie zależności
-        this.apiService = typeof ApiService !== 'undefined' ? ApiService : null;
-        this.mapService = typeof MapService !== 'undefined' ? MapService : null;
-        this.markersService = typeof MarkersService !== 'undefined' ? MarkersService : null;
-        this.searchService = typeof SearchService !== 'undefined' ? SearchService : null;
-        this.uiService = typeof UIService !== 'undefined' ? UIService : null;
-        this.integrationService = typeof IntegrationService !== 'undefined' ? IntegrationService : null;
+        // Przypisz globalne obiekty do właściwości App
+        this.apiService = window.ApiService;
+        this.mapService = window.MapService;
+        this.markersService = window.MarkersService;
+        this.searchService = window.SearchService;
+        this.uiService = window.UIService;
+        this.integrationService = window.IntegrationService;
+        this.cacheService = window.CacheService;
+        this.geocodingService = window.GeocodingService;
+        
+        console.log('Services assigned:', {
+            apiService: !!this.apiService,
+            mapService: !!this.mapService,
+            markersService: !!this.markersService,
+            searchService: !!this.searchService,
+            uiService: !!this.uiService,
+            integrationService: !!this.integrationService,
+            cacheService: !!this.cacheService,
+            geocodingService: !!this.geocodingService
+        });
+        
+        // Zabezpieczenie na wypadek braku usług
+        if (!this.apiService) console.error('ApiService not available');
+        if (!this.mapService) console.error('MapService not available');
+        if (!this.markersService) console.error('MarkersService not available');
     }
     
     /**
@@ -49,230 +77,361 @@ class App {
         console.log('Initializing application');
         
         try {
-            // Sprawdź czy wszystkie serwisy są dostępne
-            if (!this.mapService) throw new Error('MapService not available');
-            if (!this.apiService) throw new Error('ApiService not available');
+            // Inicjalizacja mapy
+            if (this.mapService && typeof this.mapService.initialize === 'function') {
+                this.mapService.initialize();
+            } else {
+                console.error('MapService or initialize method not available');
+            }
             
-            // Inicjalizacja integracji (jako pierwszy, aby odczytać parametry)
-            if (this.integrationService) {
+            // Załaduj punkty dla wybranego kraju
+            await this.loadPointsForSelectedCountry();
+            
+            // Dodaj obsługę zdarzeń
+            this.setupEventListeners();
+            
+            // Inicjalizacja serwisu integracji
+            if (this.integrationService && typeof this.integrationService.initialize === 'function') {
                 this.integrationService.initialize();
             }
             
-            // Inicjalizacja pozostałych serwisów
-            this.mapService.initialize();
-            this.uiService.initialize();
-            this.searchService.initialize();
+            // Ustaw status
+            this.updateStatus('Aplikacja gotowa', false);
             
-            // Zastosuj przekazane parametry
-            await this.integrationService.applyInitialParams();
-            
-            // Próba wczytania cache lokalnego jeśli nie podano konkretnych parametrów
-            if (!this.integrationService.params.address && !this.integrationService.params.city) {
-                if (!this.tryLoadCacheFromStorage()) {
-                    // Jeśli cache nie zadziałał, wczytaj punkty
-                    await this.loadPointsForSelectedCountry();
-                }
-            } else {
-                // Jeśli podano parametry, wczytaj punkty dla kraju
-                await this.loadPointsForSelectedCountry();
-            }
-            
-            if (typeof Utils !== 'undefined') {
-                // Użyj Utils tylko jeśli jest zdefiniowany
-                console.log('Utils available, using them');
-            } else {
-                console.error('Utils not available');
-            }
+            console.log('Application initialized');
         } catch (error) {
-            console.error('Błąd podczas inicjalizacji aplikacji:', error);
-            Utils.updateStatus('Nie można zainicjalizować aplikacji. Sprawdź konsolę.', false);
+            console.error('Error during app initialization:', error);
+            this.updateStatus('Błąd inicjalizacji aplikacji: ' + error.message, false);
         }
     }
     
     /**
-     * Próba wczytania cache z localStorage
-     * @returns {boolean} - Czy udało się wczytać cache
+     * Konfiguracja obsługi zdarzeń
      */
-    tryLoadCacheFromStorage() {
+    setupEventListeners() {
+        console.log('Setting up event listeners');
+        
         try {
-            const cachedData = localStorage.getItem('mapaCacheData');
-            if (!cachedData) return false;
+            // Filtrowanie po kraju
+            if (this.countrySelector) {
+                this.countrySelector.addEventListener('change', () => {
+                    this.loadPointsForSelectedCountry();
+                    
+                    // Dostosuj widok mapy do wybranego kraju
+                    const countryCode = this.countrySelector.value;
+                    if (countryCode !== 'all' && this.mapService && typeof this.mapService.fitToCountry === 'function') {
+                        this.mapService.fitToCountry(countryCode);
+                    }
+                });
+            }
             
-            const parsedData = JSON.parse(cachedData);
+            // Filtrowanie po mieście
+            if (this.citySelector) {
+                this.citySelector.addEventListener('change', () => {
+                    const cityName = this.citySelector.value;
+                    if (this.markersService && typeof this.markersService.filterByCity === 'function') {
+                        this.markersService.filterByCity(cityName);
+                    }
+                });
+            }
             
-            // Sprawdź wersję cache
-            if (parsedData.version !== Config.cache.version) return false;
+            // Przycisk odświeżania
+            if (this.refreshBtn) {
+                this.refreshBtn.addEventListener('click', () => {
+                    this.loadPointsForSelectedCountry(true);
+                });
+            }
             
-            // Sprawdź czy dane nie są za stare (jeśli skonfigurowano TTL)
-            if (Config.cache.ttlHours) {
-                const cacheTime = new Date(parsedData.timestamp).getTime();
-                const currentTime = new Date().getTime();
-                const cacheAgeHours = (currentTime - cacheTime) / (1000 * 60 * 60);
+            // Obsługa zapisywania cache
+            if (this.saveCacheBtn && this.cacheService) {
+                this.saveCacheBtn.addEventListener('click', () => {
+                    if (typeof this.cacheService.savePointsToFile === 'function') {
+                        this.cacheService.savePointsToFile();
+                    }
+                });
+            }
+            
+            // Obsługa wczytywania cache
+            if (this.loadCacheInput && this.cacheService) {
+                this.loadCacheInput.addEventListener('change', (event) => {
+                    if (typeof this.cacheService.loadPointsFromFile === 'function') {
+                        const file = event.target.files[0];
+                        if (file) {
+                            this.cacheService.loadPointsFromFile(file)
+                                .then(points => {
+                                    if (this.markersService) {
+                                        this.markersService.clearMarkers();
+                                        this.markersService.addMarkers(points);
+                                    }
+                                    this.updateCityFilter();
+                                })
+                                .catch(error => {
+                                    console.error('Error loading points from file:', error);
+                                    this.updateStatus('Błąd podczas ładowania punktów: ' + error.message, false);
+                                });
+                        }
+                    }
+                });
+            }
+            
+            // Przełączanie panelu wyszukiwania
+            if (this.searchToggle && this.searchPanel) {
+                this.searchToggle.addEventListener('click', () => {
+                    this.searchPanel.classList.toggle('active');
+                });
+            }
+            
+            // Obsługa wyszukiwania
+            if (this.searchBtn && this.searchInput && this.searchService) {
+                this.searchBtn.addEventListener('click', () => {
+                    const query = this.searchInput.value.trim();
+                    if (query && typeof this.searchService.search === 'function') {
+                        this.performSearch(query);
+                    }
+                });
                 
-                if (cacheAgeHours > Config.cache.ttlHours) {
-                    console.log(`Cache przeterminowane (${cacheAgeHours.toFixed(1)} godzin)`);
-                    return false;
+                // Obsługa wciśnięcia Enter w polu wyszukiwania
+                this.searchInput.addEventListener('keypress', (event) => {
+                    if (event.key === 'Enter') {
+                        const query = this.searchInput.value.trim();
+                        if (query && typeof this.searchService.search === 'function') {
+                            this.performSearch(query);
+                        }
+                    }
+                });
+                
+                // Autouzupełnianie
+                if (typeof this.searchService.setupAutocomplete === 'function') {
+                    this.searchService.setupAutocomplete(
+                        this.searchInput,
+                        document.getElementById('unified-autocomplete')
+                    );
                 }
             }
             
-            Utils.updateStatus('Wczytywanie danych z cache...', true);
-            
-            // Ustaw punkty z cache
-            this.markersService.setPoints(parsedData.points);
-            
-            // Odśwież mapę i wyszukiwarkę
-            this.refreshMap();
-            this.searchService.buildSearchIndex();
-            
-            Utils.updateStatus(`Załadowano ${parsedData.points.length} punktów z cache lokalnego`, false);
-            return true;
+            console.log('Event listeners set up');
         } catch (error) {
-            console.warn('Nie można wczytać cache z lokalnego storage:', error);
-            // Usuń uszkodzony cache
-            localStorage.removeItem('mapaCacheData');
-            return false;
+            console.error('Error setting up event listeners:', error);
         }
     }
     
     /**
      * Ładowanie punktów dla wybranego kraju
+     * @param {boolean} forceRefresh - Czy wymusić odświeżenie z API zamiast cache
+     * @returns {Promise<Array>} - Promise z tablicą punktów
      */
-    loadPointsForSelectedCountry() {
-        const countryCode = this.countrySelector.value;
-        console.log('Loading points for country:', countryCode);
+    async loadPointsForSelectedCountry(forceRefresh = false) {
+        const countryCode = this.countrySelector ? this.countrySelector.value : 'all';
+        console.log('Loading points for country:', countryCode, forceRefresh ? '(forced refresh)' : '');
+        
+        this.updateStatus('Pobieranie danych...', true);
         
         try {
-            // Bezpieczne użycie Utils
-            const debounce = safeUseUtils(
-                (utils) => utils.debounce,
-                () => (fn) => fn  // Prosta implementacja fallbackowa
-            );
-            
-            // Używanie debounce tylko jeśli jest dostępne
-            const debouncedUpdate = debounce ? 
-                debounce(() => this.updateCityFilter(), 300) : 
-                () => this.updateCityFilter();
+            // Sprawdź czy apiService jest dostępny
+            if (!this.apiService || typeof this.apiService.getPoints !== 'function') {
+                throw new Error('API service not available');
+            }
             
             // Załaduj punkty z API
-            this.apiService.getPoints(countryCode)
-                .then(points => {
-                    if (!points || !points.length) {
-                        console.warn('No points received from API');
-                        return [];
-                    }
-                    
-                    return points;
-                })
-                .then(points => {
-                    this.markersService.clearMarkers();
-                    this.markersService.addMarkers(points);
-                    
-                    // Aktualizacja filtra miast
-                    debouncedUpdate();
-                    
-                    return points;
-                })
-                .catch(error => {
-                    console.error('Error loading points:', error);
-                });
-        } catch (error) {
-            console.error('Error in loadPointsForSelectedCountry:', error);
-        }
-    }
-    
-    /**
-     * Zapisanie punktów do localStorage
-     * @param {Array} points - Punkty do zapisania
-     */
-    savePointsToLocalStorage(points) {
-        try {
-            const cacheData = {
-                timestamp: new Date().toISOString(),
-                points: points,
-                version: Config.cache.version
-            };
+            const points = await this.apiService.getPoints(countryCode);
             
-            localStorage.setItem('mapaCacheData', JSON.stringify(cacheData));
-        } catch (error) {
-            console.warn('Nie można zapisać punktów do localStorage:', error);
-            // Możliwe przepełnienie localStorage lub inne ograniczenia
-            try {
-                localStorage.removeItem('mapaCacheData');
-            } catch (e) {
-                console.error('Nie można usunąć cache:', e);
+            if (!points || !points.length) {
+                console.warn('No points received from API');
+                this.updateStatus('Nie znaleziono żadnych punktów', false);
+                return [];
             }
-        }
-    }
-    
-    /**
-     * Odświeżenie mapy
-     */
-    refreshMap() {
-        try {
-            // Dostosuj widok mapy do kraju
-            this.mapService.fitToCountry(this.countrySelector.value);
             
-            // Zaktualizuj opcje filtra miasta
-            this.updateCityFilterOptions();
+            console.log(`Received ${points.length} points`);
             
-            // Dodaj markery
-            this.markersService.addMarkers(this.citySelector.value);
-            
-            // Dodaj legendę
-            this.mapService.addLegend();
-        } catch (error) {
-            console.error('Błąd podczas odświeżania mapy:', error);
-            Utils.updateStatus('Wystąpił błąd podczas odświeżania mapy.', false);
-        }
-    }
-    
-    /**
-     * Aktualizacja opcji filtra miasta
-     */
-    updateCityFilterOptions() {
-        const selectedCity = this.citySelector.value; // Zachowaj aktualny wybór
-        
-        // Wyczyść istniejące opcje, ale zachowaj domyślną
-        while (this.citySelector.options.length > 1) {
-            this.citySelector.remove(1);
-        }
-        
-        // Zbierz unikalne miasta
-        const cities = [...new Set(
-            this.markersService.allPoints
-                .map(point => point.city)
-                .filter(city => city) // Wyklucz puste/undefined
-        )].sort();
-        
-        // Utwórz fragment DOM dla wydajności
-        const fragment = document.createDocumentFragment();
-        
-        // Dodaj miasta jako opcje
-        cities.forEach(city => {
-            const option = document.createElement('option');
-            option.value = city;
-            option.textContent = city;
-            fragment.appendChild(option);
-        });
-        
-        // Dodaj wszystkie opcje jednocześnie
-        this.citySelector.appendChild(fragment);
-        
-        // Przywróć wybraną wartość lub ustaw nową z parametrów
-        if (this.integrationService.params.city) {
-            const cityLower = this.integrationService.params.city.toLowerCase();
-            
-            // Znajdź option z pasującym miastem (bez uwzględniania wielkości liter)
-            for (let i = 0; i < this.citySelector.options.length; i++) {
-                if (this.citySelector.options[i].value.toLowerCase() === cityLower) {
-                    this.citySelector.selectedIndex = i;
-                    // Uruchom event change ręcznie
-                    this.citySelector.dispatchEvent(new Event('change'));
-                    break;
+            // Dodaj markery na mapę
+            if (this.markersService) {
+                if (typeof this.markersService.clearMarkers === 'function') {
+                    this.markersService.clearMarkers();
+                }
+                
+                if (typeof this.markersService.addMarkers === 'function') {
+                    this.markersService.addMarkers(points);
                 }
             }
-        } else {
-            this.citySelector.value = selectedCity;
+            
+            // Aktualizuj filtr miast
+            this.updateCityFilter();
+            
+            this.updateStatus(`Załadowano ${points.length} punktów`, false);
+            return points;
+        } catch (error) {
+            console.error('Error loading points:', error);
+            this.updateStatus('Błąd podczas ładowania punktów: ' + error.message, false);
+            return [];
+        }
+    }
+    
+    /**
+     * Aktualizacja filtra miast
+     */
+    updateCityFilter() {
+        console.log('Updating city filter');
+        
+        try {
+            if (!this.citySelector || !this.markersService || 
+                typeof this.markersService.getUniqueCities !== 'function') {
+                return;
+            }
+            
+            const cities = this.markersService.getUniqueCities();
+            
+            // Zachowaj aktualnie wybraną wartość
+            const currentValue = this.citySelector.value;
+            
+            // Wyczyść opcje filtra miast, zachowując opcję "wszystkie"
+            while (this.citySelector.options.length > 1) {
+                this.citySelector.remove(1);
+            }
+            
+            // Dodaj opcje dla każdego miasta
+            cities.sort().forEach(city => {
+                const option = document.createElement('option');
+                option.value = city;
+                option.textContent = city;
+                this.citySelector.appendChild(option);
+            });
+            
+            // Przywróć poprzednią wartość, jeśli istnieje w nowej liście
+            if (currentValue !== 'all') {
+                const exists = Array.from(this.citySelector.options)
+                    .some(option => option.value === currentValue);
+                
+                if (exists) {
+                    this.citySelector.value = currentValue;
+                    
+                    // Filtruj markery zgodnie z wybranym miastem
+                    if (typeof this.markersService.filterByCity === 'function') {
+                        this.markersService.filterByCity(currentValue);
+                    }
+                }
+            }
+            
+            console.log(`City filter updated with ${cities.length} cities`);
+        } catch (error) {
+            console.error('Error updating city filter:', error);
+        }
+    }
+    
+    /**
+     * Wykonanie wyszukiwania
+     * @param {string} query - Zapytanie wyszukiwania
+     */
+    async performSearch(query) {
+        console.log('Performing search for:', query);
+        this.updateStatus('Wyszukiwanie...', true);
+        
+        try {
+            if (!this.searchService || typeof this.searchService.search !== 'function') {
+                throw new Error('Search service not available');
+            }
+            
+            const results = await this.searchService.search(query);
+            
+            // Wyświetl wyniki
+            this.displaySearchResults(results);
+            
+            this.updateStatus('Wyszukiwanie zakończone', false);
+        } catch (error) {
+            console.error('Search error:', error);
+            this.updateStatus('Błąd wyszukiwania: ' + error.message, false);
+            
+            // Wyświetl pusty wynik
+            this.displaySearchResults([]);
+        }
+    }
+    
+    /**
+     * Wyświetlenie wyników wyszukiwania
+     * @param {Array} results - Wyniki wyszukiwania
+     */
+    displaySearchResults(results) {
+        console.log(`Displaying ${results.length} search results`);
+        
+        if (!this.searchResults || !this.searchResultsTitle) {
+            console.error('Search results elements not found');
+            return;
+        }
+        
+        // Wyczyść poprzednie wyniki
+        this.searchResults.innerHTML = '';
+        
+        if (results.length === 0) {
+            // Brak wyników
+            this.searchResultsTitle.style.display = 'block';
+            this.searchResults.innerHTML = '<div class="no-results">Brak wyników</div>';
+            return;
+        }
+        
+        // Pokaż tytuł sekcji wyników
+        this.searchResultsTitle.style.display = 'block';
+        
+        // Dodaj elementy dla każdego wyniku
+        results.forEach(result => {
+            const resultElement = document.createElement('div');
+            resultElement.className = 'search-result-item';
+            
+            let content = '';
+            
+            if (result.type === 'point') {
+                // Wynik jest punktem (paczkomat, placówka, itp.)
+                content = `
+                    <div class="result-name">${result.name || 'Nieznany punkt'}</div>
+                    <div class="result-address">${result.address || ''}</div>
+                `;
+            } else if (result.type === 'address') {
+                // Wynik jest adresem (wynik geokodowania)
+                content = `
+                    <div class="result-name">${result.display_name || result.formatted || 'Adres'}</div>
+                    <div class="result-address">${result.address || ''}</div>
+                `;
+            }
+            
+            resultElement.innerHTML = content;
+            
+            // Dodaj obsługę kliknięcia
+            resultElement.addEventListener('click', () => {
+                if (result.lat && result.lng && this.mapService && 
+                    typeof this.mapService.panTo === 'function') {
+                    
+                    this.mapService.panTo([result.lat, result.lng], 15);
+                    
+                    // Jeśli to jest punkt, pokaż go na mapie
+                    if (result.type === 'point' && this.markersService &&
+                        typeof this.markersService.highlightMarker === 'function') {
+                        
+                        this.markersService.highlightMarker(result.id);
+                    }
+                    
+                    // Zamknij panel wyszukiwania na urządzeniach mobilnych
+                    if (window.innerWidth < 768 && this.searchPanel) {
+                        this.searchPanel.classList.remove('active');
+                    }
+                }
+            });
+            
+            this.searchResults.appendChild(resultElement);
+        });
+    }
+    
+    /**
+     * Aktualizacja paska statusu
+     * @param {string} message - Wiadomość do wyświetlenia
+     * @param {boolean} loading - Czy pokazać wskaźnik ładowania
+     */
+    updateStatus(message, loading = false) {
+        console.log('Status update:', message, loading ? '(loading)' : '');
+        
+        if (this.statusText) {
+            this.statusText.textContent = message;
+        }
+        
+        if (this.loadingIndicator) {
+            this.loadingIndicator.style.display = loading ? 'inline-block' : 'none';
         }
     }
 }
@@ -280,9 +439,16 @@ class App {
 // Uruchomienie aplikacji po załadowaniu DOM
 document.addEventListener('DOMContentLoaded', () => {
     try {
+        console.log('DOM loaded, initializing app');
         const app = new App();
         app.initialize();
     } catch (error) {
         console.error('Failed to initialize application:', error);
+        
+        // Wyświetl użytkownikowi informację o błędzie
+        const statusText = document.getElementById('status-text');
+        if (statusText) {
+            statusText.textContent = 'Błąd podczas inicjalizacji aplikacji: ' + error.message;
+        }
     }
 });
