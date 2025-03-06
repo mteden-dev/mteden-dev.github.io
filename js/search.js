@@ -5,6 +5,7 @@ const SearchService = {
     autocompleteData: [],  // Dane dla autouzupełniania
     searchIndex: [],       // Indeks wyszukiwania
     lastQuery: '',         // Ostatnie zapytanie
+    lastSearchResults: [], // Ostatnie wyniki wyszukiwania
     
     /**
      * Inicjalizacja wyszukiwania
@@ -16,34 +17,77 @@ const SearchService = {
     },
     
     /**
-     * Buduje indeks wyszukiwania na podstawie punktów
+     * Budowanie indeksu wyszukiwania z punktów
      */
     buildSearchIndex: function() {
-        this.autocompleteData = [];
-        this.searchIndex = [];
+        console.log("Building search index...");
+        if (!MarkersService || !MarkersService.allPoints) {
+            console.error("Cannot build search index - points not available");
+            return;
+        }
         
-        // Dodaj punkty do indeksu wyszukiwania
-        MarkersService.allPoints.forEach(point => {
-            const displayText = `${point.name || 'Bez nazwy'} - ${point.address || ''}, ${point.city || ''}`;
+        this.searchIndex = MarkersService.allPoints.map(point => {
+            // Create searchable text from point properties
+            const searchText = [
+                point.name || '',
+                point.address || '',
+                point.city || '',
+                point.postCode || '',
+                point.id || ''
+            ].join(' ').toLowerCase();
             
-            this.autocompleteData.push({
-                id: point.id,
-                text: displayText,
-                type: 'point',
-                point: point
-            });
-            
-            // Dodaj frazy do indeksu
-            this.searchIndex.push({
-                id: point.id,
-                text: displayText.toLowerCase(),
-                name: (point.name || '').toLowerCase(),
-                address: (point.address || '').toLowerCase(),
-                city: (point.city || '').toLowerCase()
-            });
+            return {
+                point: point,
+                searchText: searchText
+            };
         });
         
         console.log(`Zbudowano indeks wyszukiwania z ${this.searchIndex.length} punktów`);
+    },
+    
+    /**
+     * Wyszukiwanie punktów po frazie
+     */
+    searchPoints: function(phrase) {
+        console.log(`Searching for: "${phrase}"`);
+        if (!phrase || phrase.length < 2) {
+            console.log("Search phrase too short");
+            return [];
+        }
+        
+        if (!this.searchIndex || this.searchIndex.length === 0) {
+            console.log("Search index empty, rebuilding...");
+            this.buildSearchIndex();
+        }
+        
+        const searchPhrase = phrase.toLowerCase();
+        const results = this.searchIndex
+            .filter(item => item.searchText.includes(searchPhrase))
+            .map(item => item.point);
+        
+        console.log(`Found ${results.length} results for "${phrase}"`);
+        this.lastSearchResults = results;
+        return results;
+    },
+    
+    /**
+     * Wyszukiwanie adresu przez geocoding
+     */
+    searchAddress: async function(phrase) {
+        console.log(`Geocoding address: "${phrase}"`);
+        if (!GeocodingService || typeof GeocodingService.searchAddress !== 'function') {
+            console.error("GeocodingService not available");
+            return [];
+        }
+        
+        try {
+            const result = await GeocodingService.searchAddress(phrase);
+            console.log("Geocoding result:", result);
+            return result;
+        } catch (error) {
+            console.error("Geocoding error:", error);
+            return null;
+        }
     },
     
     /**
@@ -117,28 +161,13 @@ const SearchService = {
         // Najpierw szukaj w nazwach - priorytet
         for (let i = 0; i < this.searchIndex.length; i++) {
             const item = this.searchIndex[i];
-            if (item.name.includes(queryLower)) {
-                matches.push(item.id);
+            if (item.searchText.includes(queryLower)) {
+                matches.push(item.point);
                 if (matches.length >= 5) break; // Limit do 5 wyników
             }
         }
         
-        // Jeśli mamy mniej niż 5 wyników, szukaj też w adresach i miastach
-        if (matches.length < 5) {
-            for (let i = 0; i < this.searchIndex.length; i++) {
-                const item = this.searchIndex[i];
-                if (!matches.includes(item.id) && 
-                    (item.address.includes(queryLower) || item.city.includes(queryLower))) {
-                    matches.push(item.id);
-                    if (matches.length >= 5) break; // Limit do 5 wyników
-                }
-            }
-        }
-        
-        // Konwertuj ID z powrotem na obiekty
-        return matches.map(id => 
-            this.autocompleteData.find(item => item.id === id)
-        ).filter(item => item); // Usuń undefined
+        return matches;
     },
     
     /**
@@ -155,13 +184,13 @@ const SearchService = {
         if (results.length > 0) {
             results.forEach(match => {
                 const div = document.createElement('div');
-                div.innerHTML = Utils.highlightText(match.text, query);
+                div.innerHTML = Utils.highlightText(match.name || 'Bez nazwy', query);
                 div.dataset.type = 'point';
                 div.dataset.id = match.id;
                 div.addEventListener('click', () => {
-                    document.getElementById('unified-search-input').value = match.text;
+                    document.getElementById('unified-search-input').value = match.name || 'Bez nazwy';
                     autocompleteContainer.style.display = 'none';
-                    UIService.selectPoint(match.point);
+                    UIService.selectPoint(match);
                 });
                 autocompleteContainer.appendChild(div);
             });
@@ -231,7 +260,7 @@ const SearchService = {
             UIService.selectPoint(matchingPoint.point);
         } else {
             // Jeśli nie znaleziono punktu, szukaj adresu
-            GeocodingService.searchAddress(query);
+            this.searchAddress(query);
         }
     },
     
