@@ -452,3 +452,120 @@ select {
 .map-search-container .autocomplete-item:hover {
     background-color: #f5f5f5;
 }
+
+/* Current location marker */
+.current-location-marker {
+    background: transparent;
+}
+
+.location-marker-inner {
+    width: 16px;
+    height: 16px;
+    background: #3498db;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    position: relative;
+}
+
+.location-marker-inner:after {
+    content: '';
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    left: -10px;
+    top: -10px;
+    background-color: rgba(52, 152, 219, 0.3);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Map search container positioning - ensure it's visible */
+.map-search-container {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+}
+
+#map-search-input {
+    height: 36px;
+    width: 240px;
+    padding: 0 10px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    margin-right: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    font-size: 14px;
+}
+
+#location-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.2);
+    background-color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
+
+.location-icon {
+    width: 18px;
+    height: 18px;
+    background-color: #3498db;
+    border-radius: 50%;
+    position: relative;
+}
+
+.location-icon:before {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background-color: white;
+    border-radius: 50%;
+    top: 5px;
+    left: 5px;
+}
+
+/* Autocomplete container */
+#map-search-autocomplete.autocomplete-container {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    width: 240px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1001;
+}
+
+.autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.autocomplete-item:hover {
+    background-color: #f5f5f5;
+}

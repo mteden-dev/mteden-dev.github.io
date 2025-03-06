@@ -11,9 +11,15 @@ const SearchService = {
      * Inicjalizacja wyszukiwania
      */
     initialize: function() {
+        console.log("Initializing search service");
+        
+        // Add search elements to DOM first
+        this.createSearchElements();
+        
+        // Other initialization tasks
         this.setupEventListeners();
-        // buildSearchIndex przeniesione do oddzielnej metody, będzie wywoływane 
-        // po załadowaniu punktów
+        
+        console.log("Search service initialized");
     },
     
     /**
@@ -622,6 +628,49 @@ const SearchService = {
                     console.error('Search error:', error);
                     Utils.updateStatus(`Nie znaleziono "${query}"`, false);
                 });
+        }
+    },
+
+    /**
+     * Dodaje elementy wyszukiwania do DOM
+     */
+    createSearchElements: function() {
+        console.log("Creating search elements in DOM");
+        
+        // Create the container
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'map-search-container';
+        
+        // Create the search input
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.id = 'map-search-input';
+        searchInput.placeholder = 'Wyszukaj punkt lub adres...';
+        
+        // Create the location button
+        const locationButton = document.createElement('button');
+        locationButton.id = 'location-button';
+        locationButton.title = 'Pokaż moją lokalizację';
+        
+        // Create the location icon inside the button
+        const locationIcon = document.createElement('span');
+        locationIcon.className = 'location-icon';
+        locationButton.appendChild(locationIcon);
+        
+        // Add elements to the container
+        searchContainer.appendChild(searchInput);
+        searchContainer.appendChild(locationButton);
+        
+        // Add the container to the map container
+        const mapContainer = document.getElementById('map');
+        if (mapContainer) {
+            mapContainer.appendChild(searchContainer);
+            console.log("Search elements added to map container");
+            
+            // Now initialize the search interface
+            this.initNewSearchInterface();
+        } else {
+            console.error("Map container not found, cannot add search elements");
         }
     }
 };
