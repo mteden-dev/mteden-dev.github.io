@@ -343,5 +343,285 @@ const SearchService = {
         } else {
             titleElement.style.display = 'none';
         }
+    },
+
+    /**
+     * Inicjalizacja nowego interfejsu wyszukiwania
+     */
+    initNewSearchInterface: function() {
+        const searchInput = document.getElementById('map-search-input');
+        const locationButton = document.getElementById('location-button');
+        
+        if (!searchInput || !locationButton) {
+            console.error("New search interface elements not found");
+            return;
+        }
+        
+        // Create autocomplete container
+        const autocompleteContainer = document.createElement('div');
+        autocompleteContainer.id = 'map-search-autocomplete';
+        autocompleteContainer.className = 'autocomplete-container';
+        autocompleteContainer.style.display = 'none';
+        
+        document.querySelector('.map-search-container').appendChild(autocompleteContainer);
+        
+        // Setup input events
+        searchInput.addEventListener('input', this.handleNewSearchInput.bind(this));
+        searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                const query = event.target.value.trim();
+                if (query) {
+                    this.performSearch(query);
+                    autocompleteContainer.style.display = 'none';
+                }
+            }
+        });
+        
+        // Setup location button
+        locationButton.addEventListener('click', this.handleLocationButtonClick.bind(this));
+    },
+
+    /**
+     * Obsługa kliknięcia przycisku lokalizacji
+     */
+    handleLocationButtonClick: function() {
+        console.log("Location button clicked");
+        
+        if (navigator.geolocation) {
+            Utils.updateStatus('Ustalanie lokalizacji...', true);
+            
+            navigator.geolocation.getCurrentPosition(
+                // Success callback
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    console.log(`User location: ${lat}, ${lng}`);
+                    
+                    // Update map view
+                    MapService.setView([lat, lng], 15);
+                    
+                    // Add marker for current location
+                    this.addCurrentLocationMarker(lat, lng);
+                    
+                    // Find nearest points
+                    this.findAndShowNearestPoints(lat, lng);
+                    
+                    Utils.updateStatus('Znaleziono Twoją lokalizację', false);
+                },
+                // Error callback
+                (error) => {
+                    console.error("Geolocation error:", error);
+                    let errorMsg = "Nie udało się ustalić lokalizacji.";
+                    
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMsg = "Dostęp do lokalizacji został zablokowany.";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMsg = "Dane lokalizacji są niedostępne.";
+                            break;
+                        case error.TIMEOUT:
+                            errorMsg = "Upłynął limit czasu dla ustalenia lokalizacji.";
+                            break;
+                    }
+                    
+                    Utils.updateStatus(errorMsg, false);
+                    alert(errorMsg);
+                },
+                // Options
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            Utils.updateStatus('Geolokalizacja nie jest wspierana przez przeglądarkę', false);
+            alert("Twoja przeglądarka nie obsługuje geolokalizacji.");
+        }
+    },
+
+    /**
+     * Dodaje marker w aktualnej lokalizacji użytkownika
+     */
+    addCurrentLocationMarker: function(lat, lng) {
+        if (!MapService || !MapService.map) return;
+        
+        // Remove previous marker if exists
+        if (this.currentLocationMarker) {
+            MapService.map.removeLayer(this.currentLocationMarker);
+        }
+        
+        // Create current location marker with a pulsing effect
+        const locationIcon = L.divIcon({
+            className: 'current-location-marker',
+            html: '<div class="location-marker-inner"></div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        
+        this.currentLocationMarker = L.marker([lat, lng], {
+            icon: locationIcon,
+            zIndexOffset: 1000
+        }).addTo(MapService.map);
+        
+        // Add a tooltip
+        this.currentLocationMarker.bindTooltip("Twoja lokalizacja", {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -10]
+        }).openTooltip();
+    },
+
+    /**
+     * Wyszukuje i pokazuje najbliższe punkty do podanej lokalizacji
+     */
+    findAndShowNearestPoints: function(lat, lng) {
+        if (!IntegrationService || !IntegrationService.findNearestPoints) {
+            console.error("IntegrationService.findNearestPoints not available");
+            return;
+        }
+        
+        IntegrationService.findNearestPoints(lat, lng)
+            .then(nearestPoints => {
+                if (nearestPoints && nearestPoints.length > 0) {
+                    console.log(`Found ${nearestPoints.length} nearest points`);
+                    
+                    // Show points on map
+                    if (IntegrationService.showNearestPoints) {
+                        IntegrationService.showNearestPoints(nearestPoints);
+                    }
+                    
+                    // Display in search results
+                    this.displaySearchResults(nearestPoints.map(point => ({ 
+                        point: point,
+                        distance: Utils.calculateDistance(lat, lng, point.latitude, point.longitude)
+                    })));
+                } else {
+                    Utils.updateStatus("Nie znaleziono punktów w pobliżu", false);
+                }
+            })
+            .catch(error => {
+                console.error("Error finding nearest points:", error);
+                Utils.updateStatus("Błąd wyszukiwania punktów", false);
+            });
+    },
+
+    /**
+     * Obsługa wpisywania w polu wyszukiwania
+     */
+    handleNewSearchInput: function(event) {
+        const query = event.target.value.trim();
+        const autocompleteContainer = document.getElementById('map-search-autocomplete');
+        
+        // Clear any existing timers
+        if (this.searchInputTimer) clearTimeout(this.searchInputTimer);
+        
+        // Clear container
+        if (autocompleteContainer) {
+            autocompleteContainer.innerHTML = '';
+            
+            if (!query) {
+                autocompleteContainer.style.display = 'none';
+                return;
+            }
+            
+            if (query.length >= 2) {
+                this.searchInputTimer = setTimeout(() => {
+                    // Search points
+                    const pointResults = this.searchPoints(query);
+                    
+                    // Display results
+                    if (pointResults.length > 0) {
+                        pointResults.slice(0, 5).forEach(point => {
+                            const item = document.createElement('div');
+                            item.className = 'autocomplete-item';
+                            item.innerHTML = `<strong>${point.name || point.id}</strong><br>${point.address || ''}, ${point.city || ''}`;
+                            
+                            item.addEventListener('click', () => {
+                                document.getElementById('map-search-input').value = point.name || point.id;
+                                autocompleteContainer.style.display = 'none';
+                                UIService.selectPoint(point);
+                            });
+                            
+                            autocompleteContainer.appendChild(item);
+                        });
+                        
+                        autocompleteContainer.style.display = 'block';
+                    } else {
+                        // If no point results, try address search
+                        if (query.length >= 3) {
+                            GeocodingService.searchAddresses(query, (addressResults) => {
+                                if (addressResults && addressResults.length > 0) {
+                                    addressResults.slice(0, 3).forEach(result => {
+                                        const item = document.createElement('div');
+                                        item.className = 'autocomplete-item';
+                                        item.innerHTML = `<em>Adres:</em> ${result.display_name}`;
+                                        
+                                        item.addEventListener('click', () => {
+                                            document.getElementById('map-search-input').value = result.display_name;
+                                            autocompleteContainer.style.display = 'none';
+                                            GeocodingService.showAddressOnMap(result.lat, result.lon, result.display_name);
+                                        });
+                                        
+                                        autocompleteContainer.appendChild(item);
+                                    });
+                                    
+                                    autocompleteContainer.style.display = 'block';
+                                } else {
+                                    autocompleteContainer.style.display = 'none';
+                                }
+                            });
+                        } else {
+                            autocompleteContainer.style.display = 'none';
+                        }
+                    }
+                }, 300);
+            }
+        }
+    },
+
+    /**
+     * Wykonuje wyszukiwanie dla podanej frazy
+     */
+    performSearch: function(query) {
+        if (!query || query.length < 2) return;
+        
+        console.log(`Performing search for: ${query}`);
+        Utils.updateStatus('Szukam...', true);
+        
+        // First try searching points
+        const pointResults = this.searchPoints(query);
+        
+        if (pointResults.length > 0) {
+            console.log(`Found ${pointResults.length} matching points`);
+            Utils.updateStatus(`Znaleziono ${pointResults.length} punktów`, false);
+            
+            // Focus on the first result
+            const point = pointResults[0];
+            if (point && point.latitude && point.longitude) {
+                MapService.setView([point.latitude, point.longitude], 15);
+                
+                if (MarkersService && MarkersService.markersById && MarkersService.markersById[point.id]) {
+                    MarkersService.markersById[point.id].marker.openPopup();
+                }
+            }
+            
+            // Display all results
+            this.displaySearchResults(pointResults.map(p => ({ point: p })));
+        } else {
+            // If no points found, try geocoding
+            console.log('No points found, trying address search');
+            
+            GeocodingService.searchAddress(query)
+                .then(() => {
+                    Utils.updateStatus('Wyszukiwanie zakończone', false);
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                    Utils.updateStatus(`Nie znaleziono "${query}"`, false);
+                });
+        }
     }
 };

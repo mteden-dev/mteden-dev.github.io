@@ -357,3 +357,98 @@ select {
     border-radius: 3px;
     box-shadow: 0 0 3px rgba(0,0,0,0.3);
 }
+
+/* Add these styles at the end of your CSS file */
+
+/* Hide old search panel and toggle */
+#search-panel, #search-toggle {
+    display: none;
+}
+
+/* New search container on map */
+.map-search-container {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+}
+
+#map-search-input {
+    height: 36px;
+    width: 240px;
+    padding: 0 10px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    margin-right: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    font-size: 14px;
+}
+
+#map-search-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+#location-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.2);
+    background-color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
+
+#location-button:hover {
+    background-color: #f4f4f4;
+}
+
+.location-icon {
+    width: 18px;
+    height: 18px;
+    background-color: #3498db;
+    border-radius: 50%;
+    position: relative;
+}
+
+.location-icon:before {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background-color: white;
+    border-radius: 50%;
+    top: 5px;
+    left: 5px;
+}
+
+/* Autocomplete for new search input */
+.map-search-container .autocomplete-container {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    width: 240px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1001;
+}
+
+.map-search-container .autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.map-search-container .autocomplete-item:hover {
+    background-color: #f5f5f5;
+}

@@ -94,6 +94,11 @@ class App {
                 console.error('UIService or initialize method not available');
             }
             
+            // Initialize the new search interface
+            if (this.searchService && typeof this.searchService.initNewSearchInterface === 'function') {
+                this.searchService.initNewSearchInterface();
+            }
+            
             // Załaduj punkty dla wybranego kraju
             await this.loadPointsForSelectedCountry();
             
