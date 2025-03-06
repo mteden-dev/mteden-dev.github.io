@@ -24,6 +24,9 @@ function safeUseUtils(callback, fallback) {
  */
 console.log('Loading App');
 
+// Dodaj kontener dla serwisów jako globalny obiekt
+window.Services = {};
+
 class App {
     constructor() {
         console.log('App constructor');
@@ -43,31 +46,31 @@ class App {
         this.statusText = document.getElementById('status-text');
         this.loadingIndicator = document.getElementById('loading-indicator');
         
-        // Przypisz globalne obiekty do właściwości App
-        this.apiService = window.ApiService;
-        this.mapService = window.MapService;
-        this.markersService = window.MarkersService;
-        this.searchService = window.SearchService;
-        this.uiService = window.UIService;
-        this.integrationService = window.IntegrationService;
-        this.cacheService = window.CacheService;
-        this.geocodingService = window.GeocodingService;
+        // Zamiast tego użyj bezpośrednio zmiennych globalnych i zapisz je w lokalnych referencjach
+        this.apiService = ApiService || {};
+        this.mapService = MapService || {};
+        this.markersService = MarkersService || {};
+        this.searchService = SearchService || {};
+        this.uiService = UIService || {};
+        this.integrationService = IntegrationService || {};
+        this.cacheService = CacheService || {};
+        this.geocodingService = GeocodingService || {};
         
-        console.log('Services assigned:', {
-            apiService: !!this.apiService,
-            mapService: !!this.mapService,
-            markersService: !!this.markersService,
-            searchService: !!this.searchService,
-            uiService: !!this.uiService,
-            integrationService: !!this.integrationService,
-            cacheService: !!this.cacheService,
-            geocodingService: !!this.geocodingService
-        });
+        // Zapisz referencje w globalnym obiekcie Services dla dostępu z innych miejsc
+        window.Services.apiService = this.apiService;
+        window.Services.mapService = this.mapService;
+        window.Services.markersService = this.markersService;
+        window.Services.searchService = this.searchService;
+        window.Services.uiService = this.uiService;
+        window.Services.integrationService = this.integrationService;
+        window.Services.cacheService = this.cacheService;
+        window.Services.geocodingService = this.geocodingService;
         
-        // Zabezpieczenie na wypadek braku usług
-        if (!this.apiService) console.error('ApiService not available');
-        if (!this.mapService) console.error('MapService not available');
-        if (!this.markersService) console.error('MarkersService not available');
+        // Diagnostyka
+        console.log('Config available:', typeof Config !== 'undefined');
+        console.log('ApiService available:', !!this.apiService);
+        console.log('MapService available:', !!this.mapService);
+        console.log('MarkersService available:', !!this.markersService);
     }
     
     /**
@@ -443,19 +446,31 @@ let app; // Zmień na globalną zmienną
 document.addEventListener('DOMContentLoaded', () => {
     try {
         console.log('DOM loaded, initializing app');
-        app = new App(); // Przypisz do globalnej zmiennej
-        app.initialize();
+        
+        // Na wszelki wypadek sprawdź dostępność usług
+        console.log('Services available at initialization:');
+        console.log('- ApiService:', typeof ApiService !== 'undefined');
+        console.log('- MapService:', typeof MapService !== 'undefined');
+        console.log('- MarkersService:', typeof MarkersService !== 'undefined');
+        
+        // Utwórz aplikację
+        window.app = new App();
+        window.app.initialize();
         
         // Dla wstecznej kompatybilności z kodem używającym App.metoda()
         window.App = {
-            loadPointsForSelectedCountry: (...args) => app.loadPointsForSelectedCountry(...args),
-            updateCityFilter: (...args) => app.updateCityFilter(...args),
-            updateCityFilterOptions: (...args) => app.updateCityFilter(...args),
+            loadPointsForSelectedCountry: (...args) => window.app.loadPointsForSelectedCountry(...args),
+            updateCityFilter: (...args) => window.app.updateCityFilter(...args),
+            updateCityFilterOptions: (...args) => window.app.updateCityFilter(...args),
             refreshMap: () => {
-                if (app.mapService) app.mapService.initialize();
+                if (window.app.mapService && window.app.mapService.initialize) {
+                    window.app.mapService.initialize();
+                }
             },
             savePointsToLocalStorage: (points) => {
-                if (app.cacheService) app.cacheService.savePointsToLocalStorage(points);
+                if (window.app.cacheService && window.app.cacheService.savePointsToLocalStorage) {
+                    window.app.cacheService.savePointsToLocalStorage(points);
+                }
             }
         };
     } catch (error) {

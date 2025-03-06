@@ -224,3 +224,11 @@ const ApiService = {
         }
     }
 };
+
+// Na końcu pliku api.js dodaj:
+console.log('ApiService loaded and available in global scope:', typeof ApiService !== 'undefined');
+
+// Upewnij się, że usługa jest dostępna globalnie
+if (typeof window !== 'undefined') {
+    window.ApiService = ApiService;
+}
