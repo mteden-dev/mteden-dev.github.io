@@ -245,6 +245,7 @@ class App {
             }
             
             console.log(`Received ${points.length} points`);
+            console.log('Points:', points); // Log the points received
             
             // Dodaj markery na mapę
             if (this.markersService) {
@@ -254,7 +255,11 @@ class App {
                 
                 if (typeof this.markersService.addMarkers === 'function') {
                     this.markersService.addMarkers(points);
+                } else {
+                    console.error('MarkersService.addMarkers method not available');
                 }
+            } else {
+                console.error('MarkersService not available');
             }
             
             // Aktualizuj filtr miast
@@ -476,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
         console.error('Failed to initialize application:', error);
         
-        // Wyświetl użytkownikowi informację o błędzie1
+        // Wyświetl użytkownikowi informację o błędzie
         const statusText = document.getElementById('status-text');
         if (statusText) {
             statusText.textContent = 'Błąd podczas inicjalizacji aplikacji: ' + error.message;
