@@ -13,8 +13,8 @@ const SearchService = {
     initialize: function() {
         console.log("Initializing search service");
         
-        // Add search elements to DOM first
-        this.createSearchElements();
+        // Initialize the search interface using existing HTML elements
+        this.initNewSearchInterface();
         
         // Other initialization tasks
         this.setupEventListeners();
@@ -355,22 +355,32 @@ const SearchService = {
      * Inicjalizacja nowego interfejsu wyszukiwania
      */
     initNewSearchInterface: function() {
+        console.log("Initializing new search interface - looking for elements");
+        
         const searchInput = document.getElementById('map-search-input');
         const locationButton = document.getElementById('location-button');
+        
+        console.log("Search input found:", !!searchInput);
+        console.log("Location button found:", !!locationButton);
         
         if (!searchInput || !locationButton) {
             console.error("New search interface elements not found");
             return;
         }
         
-        // Create autocomplete container
-        const autocompleteContainer = document.createElement('div');
-        autocompleteContainer.id = 'map-search-autocomplete';
-        autocompleteContainer.className = 'autocomplete-container';
-        autocompleteContainer.style.display = 'none';
+        // Create autocomplete container only if it doesn't exist
+        let autocompleteContainer = document.getElementById('map-search-autocomplete');
+        if (!autocompleteContainer) {
+            console.log("Creating autocomplete container");
+            autocompleteContainer = document.createElement('div');
+            autocompleteContainer.id = 'map-search-autocomplete';
+            autocompleteContainer.className = 'autocomplete-container';
+            autocompleteContainer.style.display = 'none';
+            
+            document.querySelector('.map-search-container').appendChild(autocompleteContainer);
+        }
         
-        document.querySelector('.map-search-container').appendChild(autocompleteContainer);
-        
+        console.log("Setting up search input events");
         // Setup input events
         searchInput.addEventListener('input', this.handleNewSearchInput.bind(this));
         searchInput.addEventListener('keydown', (event) => {
@@ -383,8 +393,11 @@ const SearchService = {
             }
         });
         
+        console.log("Setting up location button events");
         // Setup location button
         locationButton.addEventListener('click', this.handleLocationButtonClick.bind(this));
+        
+        console.log("New search interface initialization complete");
     },
 
     /**
