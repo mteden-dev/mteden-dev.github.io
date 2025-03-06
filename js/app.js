@@ -455,7 +455,15 @@ class App {
 let app; // Zmień na globalną zmienną
 
 // Na końcu pliku, gdzie tworzysz instancję:
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM loaded, explicitly initializing UI service");
+    if (UIService && typeof UIService.initialize === 'function') {
+        UIService.initialize();
+    } else {
+        console.error("UIService not available for initialization");
+    }
+    
+    // App initialization continues...
     try {
         console.log('DOM loaded, initializing app');
         

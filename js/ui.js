@@ -91,9 +91,24 @@ const UIService = {
         });
         
         // Obsługa panelu wyszukiwania
-        document.getElementById('search-toggle').addEventListener('click', () => {
+        const searchToggleBtn = document.getElementById('search-toggle');
+        if (!searchToggleBtn) {
+            console.error("Search toggle button not found in DOM!");
+            return;
+        }
+        
+        console.log("Setting up search toggle event listener");
+        searchToggleBtn.addEventListener('click', (event) => {
+            console.log("Search toggle button clicked");
+            event.preventDefault();
             this.toggleSearchPanel();
         });
+
+        // Add direct test event after 3 seconds
+        setTimeout(() => {
+            console.log("Testing search panel toggle after timeout");
+            this.toggleSearchPanel();
+        }, 3000);
     },
     
     /**
@@ -143,12 +158,22 @@ const UIService = {
      * Przełączanie widoczności panelu wyszukiwania
      */
     toggleSearchPanel: function() {
+        console.log("Toggle search panel called");
         const searchPanel = document.getElementById('search-panel');
         
+        if (!searchPanel) {
+            console.error("Search panel element not found!");
+            return;
+        }
+        
+        console.log("Search panel current state:", searchPanel.classList.contains('open') ? "open" : "closed");
+        
         if (searchPanel.classList.contains('open')) {
-            this.closeSearchPanel();  // Use this instead of UIService
+            console.log("Closing search panel");
+            this.closeSearchPanel();
         } else {
-            this.openSearchPanel();   // Use this instead of UIService
+            console.log("Opening search panel");
+            this.openSearchPanel();
         }
     },
     
@@ -156,15 +181,37 @@ const UIService = {
      * Otwarcie panelu wyszukiwania
      */
     openSearchPanel: function() {
+        console.log("Open search panel called");
         const searchPanel = document.getElementById('search-panel');
+        if (!searchPanel) {
+            console.error("Search panel element not found in openSearchPanel!");
+            return;
+        }
+        
         searchPanel.classList.add('open');
+        console.log("Added 'open' class, current classes:", searchPanel.className);
+        
+        // Force panel visibility as a test
+        searchPanel.style.display = 'block';
+        searchPanel.style.transform = 'translateX(0)';
     },
     
     /**
      * Zamknięcie panelu wyszukiwania
      */
     closeSearchPanel: function() {
+        console.log("Close search panel called");
         const searchPanel = document.getElementById('search-panel');
+        if (!searchPanel) {
+            console.error("Search panel element not found in closeSearchPanel!");
+            return;
+        }
+        
         searchPanel.classList.remove('open');
+        console.log("Removed 'open' class, current classes:", searchPanel.className);
+        
+        // Reset any forced styles
+        searchPanel.style.display = '';
+        searchPanel.style.transform = '';
     }
 };
