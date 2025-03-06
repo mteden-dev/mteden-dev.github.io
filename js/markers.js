@@ -25,9 +25,9 @@ const MarkersService = {
     
     /**
      * Dodanie markerów na mapę
-     * @param {string} cityFilter - Filtr miasta
+     * @param {string|Array} cityFilterOrPoints - Filtr miasta lub tablica punktów
      */
-    addMarkers: function(cityFilter) {
+    addMarkers: function(cityFilterOrPoints) {
         // Usuń istniejące markery
         if (this.markerClusterGroup) {
             MapService.map.removeLayer(this.markerClusterGroup);
@@ -36,10 +36,22 @@ const MarkersService = {
         // Utwórz nową grupę markerów
         this.markerClusterGroup = L.markerClusterGroup(Config.map.clusterOptions);
         
-        // Filtruj punkty według miasta
-        const filteredPoints = cityFilter === 'all'
-            ? this.allPoints
-            : this.allPoints.filter(point => point.city === cityFilter);
+        let filteredPoints;
+        
+        // Obsługa różnych typów parametrów
+        if (Array.isArray(cityFilterOrPoints)) {
+            // Jeśli otrzymaliśmy bezpośrednio tablicę punktów
+            filteredPoints = cityFilterOrPoints;
+            
+            // Zaktualizuj również allPoints, aby zachować referencję
+            this.allPoints = cityFilterOrPoints;
+        } else {
+            // Jeśli otrzymaliśmy filtr miasta jako string
+            const cityFilter = cityFilterOrPoints;
+            filteredPoints = cityFilter === 'all'
+                ? this.allPoints
+                : this.allPoints.filter(point => point.city === cityFilter);
+        }
         
         // Dodaj markery dla przefiltrowanych punktów
         filteredPoints.forEach(point => {

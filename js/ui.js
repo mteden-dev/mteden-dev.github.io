@@ -146,9 +146,9 @@ const UIService = {
         const searchPanel = document.getElementById('search-panel');
         
         if (searchPanel.classList.contains('open')) {
-            UIService.closeSearchPanel();
+            this.closeSearchPanel();  // Use this instead of UIService
         } else {
-            UIService.openSearchPanel();
+            this.openSearchPanel();   // Use this instead of UIService
         }
     },
     
