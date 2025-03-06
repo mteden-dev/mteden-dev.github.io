@@ -29,8 +29,12 @@ const IntegrationService = {
         // Dodaj nasłuchiwanie zmian widoku mapy
         this.setupMapMoveEndEvent();
         
-        // Dodaj automatyczne ładowanie punktów po inicjalizacji
-        this.loadPointsInViewport();
+        // Dodaj opóźnienie, aby mapa zdążyła się zainicjalizować przed ładowaniem punktów
+        console.log('Setting timeout for automatic points loading');
+        setTimeout(() => {
+            console.log('Automatically loading points in viewport');
+            this.loadPointsInViewport();
+        }, 500);
     },
     
     /**
@@ -64,7 +68,9 @@ const IntegrationService = {
         document.body.classList.add('modal-mode');
         
         // Dodaj przycisk wyboru punktu do popupu markera
-        MarkersService.popupSelectButtonText = Config.mode.modalSelectButtonText;
+        if (MarkersService) {
+            MarkersService.popupSelectButtonText = Config.mode.modalSelectButtonText;
+        }
         
         // Ukryj niektóre elementy UI w trybie modalnym (opcjonalnie)
         const elementsToHide = document.querySelectorAll('.hide-in-modal');
@@ -105,43 +111,14 @@ const IntegrationService = {
     },
     
     /**
-     * Konfiguracja przycisku do pokazywania punktów w widocznym obszarze
-     */
-    setupViewportPointsButton: function() {
-        // Utwórz przycisk jeśli nie istnieje
-        if (!document.getElementById('viewport-points-btn')) {
-            const viewportPointsBtn = document.createElement('button');
-            viewportPointsBtn.id = 'viewport-points-btn';
-            viewportPointsBtn.className = 'viewport-points-btn';
-            viewportPointsBtn.textContent = 'Pokaż punkty w tej okolicy';
-            viewportPointsBtn.style.display = 'none';
-            viewportPointsBtn.style.position = 'absolute';
-            viewportPointsBtn.style.top = '10px';
-            viewportPointsBtn.style.left = '50%';
-            viewportPointsBtn.style.transform = 'translateX(-50%)';
-            viewportPointsBtn.style.zIndex = '1000';
-            viewportPointsBtn.style.padding = '8px 16px';
-            viewportPointsBtn.style.backgroundColor = '#fff';
-            viewportPointsBtn.style.border = '2px solid rgba(0,0,0,0.2)';
-            viewportPointsBtn.style.borderRadius = '4px';
-            viewportPointsBtn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.4)';
-            viewportPointsBtn.addEventListener('click', () => {
-                this.loadPointsInViewport();
-            });
-            
-            document.body.appendChild(viewportPointsBtn);
-        }
-    },
-    
-    /**
      * Konfiguracja nasłuchiwania zmian widoku mapy
      */
     setupMapMoveEndEvent: function() {
-        // Teraz MapService jest dostępny
         console.log('Setting up map move end event');
-        if (MapService.map) {
+        if (MapService && MapService.map) {
             MapService.map.on('moveend', () => {
-                // Nie pokazujemy już przycisku po przesunięciu mapy
+                // Opcjonalnie: Automatyczne ładowanie punktów przy każdej zmianie widoku mapy
+                // this.loadPointsInViewport();
             });
             
             // Dodatkowe flagi do śledzenia interakcji użytkownika
@@ -156,30 +133,18 @@ const IntegrationService = {
     },
     
     /**
-     * Pokazanie przycisku do ładowania punktów w widocznym obszarze
-     */
-    showViewportPointsButton: function() {
-        const btn = document.getElementById('viewport-points-btn');
-        if (btn) {
-            btn.style.display = 'block';
-        }
-    },
-    
-    /**
-     * Ukrycie przycisku do ładowania punktów w widocznym obszarze
-     */
-    hideViewportPointsButton: function() {
-        const btn = document.getElementById('viewport-points-btn');
-        if (btn) {
-            btn.style.display = 'none';
-        }
-    },
-    
-    /**
      * Ładowanie punktów w aktualnie widocznym obszarze mapy
      */
     loadPointsInViewport: function() {
+        console.log('LOADING POINTS IN VIEWPORT STARTED');
+        
+        if (!MapService || !MapService.map) {
+            console.error('Map not initialized');
+            return;
+        }
+        
         const bounds = MapService.map.getBounds();
+        console.log('Current map bounds:', bounds);
         
         const center = bounds.getCenter();
         const radius = Math.max(
@@ -187,24 +152,49 @@ const IntegrationService = {
             Math.abs(bounds.getEast() - bounds.getWest())
         ) / 2;
         
-        Utils.updateStatus('Wyszukiwanie punktów w widocznym obszarze...', true);
+        console.log('Search center:', center, 'radius:', radius);
         
+        if (Utils && typeof Utils.updateStatus === 'function') {
+            Utils.updateStatus('Wyszukiwanie punktów w widocznym obszarze...', true);
+        }
+        
+        console.log('Calling API to fetch points');
         // Załaduj punkty w obszarze
-        ApiService.fetchPointsInArea(center.lat, center.lng, radius)
-            .then(points => {
-                if (points.length > 0) {
-                    Utils.updateStatus(`Znaleziono ${points.length} punktów w okolicy`, false);
-                    MarkersService.setPoints(points);
-                    MarkersService.addMarkers('all');
-                    SearchService.buildSearchIndex();
-                    this.hideViewportPointsButton();
-                } else {
-                    Utils.updateStatus('Nie znaleziono punktów w tej okolicy', false);
-                }
-            })
-            .catch(error => {
-                Utils.updateStatus(`Błąd wczytywania punktów: ${error.message}`, false);
-            });
+        if (ApiService && typeof ApiService.fetchPointsInArea === 'function') {
+            ApiService.fetchPointsInArea(center.lat, center.lng, radius)
+                .then(points => {
+                    console.log(`API returned ${points.length} points`);
+                    if (points.length > 0) {
+                        if (Utils && typeof Utils.updateStatus === 'function') {
+                            Utils.updateStatus(`Znaleziono ${points.length} punktów w okolicy`, false);
+                        }
+                        console.log('Setting points in MarkersService');
+                        if (MarkersService && typeof MarkersService.setPoints === 'function') {
+                            MarkersService.setPoints(points);
+                        }
+                        console.log('Adding markers to map');
+                        if (MarkersService && typeof MarkersService.addMarkers === 'function') {
+                            MarkersService.addMarkers(points);
+                        }
+                        console.log('Building search index');
+                        if (SearchService && typeof SearchService.buildSearchIndex === 'function') {
+                            SearchService.buildSearchIndex();
+                        }
+                    } else {
+                        if (Utils && typeof Utils.updateStatus === 'function') {
+                            Utils.updateStatus('Nie znaleziono punktów w tej okolicy', false);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading points:', error);
+                    if (Utils && typeof Utils.updateStatus === 'function') {
+                        Utils.updateStatus(`Błąd wczytywania punktów: ${error.message}`, false);
+                    }
+                });
+        } else {
+            console.error('ApiService or fetchPointsInArea method not available');
+        }
     },
     
     /**
@@ -212,6 +202,11 @@ const IntegrationService = {
      * @param {Object} point - Wybrany punkt
      */
     selectPoint: function(point) {
+        if (!point) {
+            console.error('No point provided to selectPoint');
+            return;
+        }
+
         if (this.params.mode === 'modal') {
             // Przygotuj dane do przekazania
             const pointData = {
@@ -231,7 +226,9 @@ const IntegrationService = {
             window.parent.postMessage(pointData, '*');
         } else {
             // W trybie standalone wykonaj standardową akcję
-            UIService.selectPoint(point);
+            if (UIService && typeof UIService.selectPoint === 'function') {
+                UIService.selectPoint(point);
+            }
         }
     },
     
@@ -243,7 +240,7 @@ const IntegrationService = {
             // Zastosuj parametr kraju
             if (this.params.country) {
                 const countrySelector = document.getElementById('country-filter');
-                if (countrySelector && Config.countries[this.params.country]) {
+                if (countrySelector && Config.countries && Config.countries[this.params.country]) {
                     countrySelector.value = this.params.country;
                 }
             }
@@ -254,7 +251,7 @@ const IntegrationService = {
             }
             
             // Zastosuj wyszukiwanie adresu (jeśli podano)
-            if (this.params.address) {
+            if (this.params.address && GeocodingService && typeof GeocodingService.searchAddress === 'function') {
                 await GeocodingService.searchAddress(this.params.address);
                 
                 // Znajdź i pokaż najbliższe punkty
@@ -272,19 +269,33 @@ const IntegrationService = {
         } catch (error) {
             console.error('Błąd podczas stosowania parametrów początkowych:', error);
         }
-    },
+    }, // Added missing comma here
     
     /**
      * Znalezienie najbliższych punktów do podanej lokalizacji
      */
     findNearestPoints: async function(lat, lng) {
+        if (!lat || !lng) {
+            console.error('Invalid coordinates for findNearestPoints');
+            return [];
+        }
+
         // Jeśli punkty są już załadowane, znajdź wśród nich
-        if (MarkersService.allPoints && MarkersService.allPoints.length > 0) {
+        if (MarkersService && MarkersService.allPoints && MarkersService.allPoints.length > 0 && 
+            typeof MarkersService.findNearestPoints === 'function') {
             return MarkersService.findNearestPoints(lat, lng, Config.search.nearestPointsLimit);
         }
         
         // Jeśli nie, pobierz punkty w okolicy
-        return await ApiService.fetchPointsInArea(lat, lng, Config.search.approximateSearchRadius);
+        if (ApiService && typeof ApiService.fetchPointsInArea === 'function') {
+            return await ApiService.fetchPointsInArea(
+                lat, 
+                lng, 
+                Config && Config.search ? Config.search.approximateSearchRadius : 5000
+            );
+        }
+        
+        return [];
     },
     
     /**
@@ -294,38 +305,40 @@ const IntegrationService = {
         if (!points || points.length === 0) return;
         
         // Dodaj markery dla znalezionych punktów
-        points.forEach(point => {
-            MarkersService.addSingleMarker(point);
-        });
+        if (MarkersService && typeof MarkersService.addSingleMarker === 'function') {
+            points.forEach(point => {
+                MarkersService.addSingleMarker(point);
+            });
+        }
         
         // Dopasuj widok mapy do znalezionych punktów
-        const bounds = L.latLngBounds(points.map(p => [p.latitude, p.longitude]));
-        MapService.map.fitBounds(bounds, {
-            padding: [50, 50],
-            maxZoom: 16
-        });
+        if (MapService && MapService.map && typeof L !== 'undefined') {
+            try {
+                const bounds = L.latLngBounds(points.map(p => [p.latitude, p.longitude]));
+                MapService.map.fitBounds(bounds, {
+                    padding: [50, 50],
+                    maxZoom: 16
+                });
+            } catch (error) {
+                console.error('Error fitting bounds to points:', error);
+            }
+        }
     },
     
     /**
      * Wysłanie wybranego punktu do rodzica (w trybie modalnym)
      */
     sendSelectedPoint: function(point) {
+        if (!point) {
+            console.error('No point provided to sendSelectedPoint');
+            return;
+        }
+
         if (this.mode === 'modal' && window.parent) {
             window.parent.postMessage({
                 action: 'selectPoint',
                 point: point
             }, '*');
         }
-    },
-    
-    /**
-     * Funkcja wywoływana po kliknięciu "Wybierz ten punkt"
-     */
-    selectPoint: function(point) {
-        // Wyślij dane do rodzica
-        this.sendSelectedPoint(point);
-        
-        // Informacja dla użytkownika
-        Utils.updateStatus('Wybrano punkt: ' + (point.name || point.id), false);
     }
 };
