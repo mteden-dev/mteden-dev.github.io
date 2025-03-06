@@ -2,6 +2,16 @@
  * Obsługa API
  */
 const ApiService = {
+    // Dodaj alias dla metody fetchPoints jako getPoints
+    /**
+     * Pobieranie danych punktów (alias dla zgodności)
+     * @param {string} countryCode - Kod kraju (pl, other, all)
+     * @returns {Promise<Array>} - Promise z tablicą punktów
+     */
+    getPoints: function(countryCode) {
+        return this.fetchPoints(countryCode);
+    },
+
     /**
      * Pobieranie danych punktów
      * @param {string} countryCode - Kod kraju (pl, other, all)

@@ -436,12 +436,28 @@ class App {
     }
 }
 
-// Uruchomienie aplikacji po załadowaniu DOM
+// Dodaj globalną zmienną dla instancji App
+let app; // Zmień na globalną zmienną
+
+// Na końcu pliku, gdzie tworzysz instancję:
 document.addEventListener('DOMContentLoaded', () => {
     try {
         console.log('DOM loaded, initializing app');
-        const app = new App();
+        app = new App(); // Przypisz do globalnej zmiennej
         app.initialize();
+        
+        // Dla wstecznej kompatybilności z kodem używającym App.metoda()
+        window.App = {
+            loadPointsForSelectedCountry: (...args) => app.loadPointsForSelectedCountry(...args),
+            updateCityFilter: (...args) => app.updateCityFilter(...args),
+            updateCityFilterOptions: (...args) => app.updateCityFilter(...args),
+            refreshMap: () => {
+                if (app.mapService) app.mapService.initialize();
+            },
+            savePointsToLocalStorage: (points) => {
+                if (app.cacheService) app.cacheService.savePointsToLocalStorage(points);
+            }
+        };
     } catch (error) {
         console.error('Failed to initialize application:', error);
         
