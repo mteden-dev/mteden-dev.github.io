@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Paczkomatów</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    
+    <!-- MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+    
+    <!-- Własne style -->
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+ 
+    <div id="selected-point-container" class="selected-point-container">
+        Wybrany punkt: <span id="selected-point-name">Brak</span>
+    </div>
+    
+    <div id="status-bar" class="status-bar">
+        <span id="loading-indicator" class="loading"></span>
+        <span id="status-text">Pobieranie danych...</span>
+    </div>
+    
+    <div class="controls">
+        <div>
+            <label for="country-filter">Kraj:</label>
+            <select id="country-filter">
+                <option value="all">Wszystkie kraje</option>
+                <option value="pl" selected>Polska</option>
+                <option value="fr">Francja</option>
+                <option value="other">Inny kraj</option>
+            </select>
+        </div>
+        
+        <div>
+            <label for="city-filter">Miasto:</label>
+            <select id="city-filter">
+                <option value="all">Wszystkie miasta</option>
+                <!-- Opcje będą dodane dynamicznie -->
+            </select>
+        </div>
+        
+        <button id="refresh-btn">Odśwież dane</button>
+        <button id="save-cache-btn" title="Zapisz dane punktów do pliku">Zapisz punkty</button>
+        <div class="file-input-container">
+            <label for="load-cache" class="file-input-button">Załaduj punkty</label>
+            <input type="file" id="load-cache" accept=".json" style="display: none;">
+        </div>
+    </div>
+    
+    <!-- Przycisk otwierający panel wyszukiwania -->
+    <div class="search-toggle" id="search-toggle">🔍</div>
+    
+    <!-- Panel wyszukiwania -->
+    <div class="search-panel" id="search-panel">
+        <div class="search-panel-content">
+            <h2>Wyszukiwarka</h2>
+            
+            <div class="search-input-container">
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    id="unified-search-input" 
+                    placeholder="Wyszukaj punkt lub wprowadź adres..."
+                >
+                <div class="autocomplete-items" id="unified-autocomplete"></div>
+            </div>
+            
+            <button id="search-btn">Szukaj</button>
+            
+            <div class="nearest-points-title" id="search-results-title" style="display: none;">
+                Wyniki wyszukiwania:
+            </div>
+            
+            <div class="search-results" id="search-results">
+                <!-- Wyniki będą dodane dynamicznie -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <!-- MarkerCluster JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+    
+    <!-- Skrypty aplikacji - kolejność jest kluczowa -->
+    <script src="js/config.js" defer></script>
+    <script src="js/utils.js" defer></script>
+    <script src="js/map.js" defer></script>
+    <script src="js/api.js" defer></script>
+    <script src="js/markers.js" defer></script>
+    <script src="js/geocoding.js" defer></script>
+    <script src="js/cache.js" defer></script>
+    <script src="js/search.js" defer></script>
+    <script src="js/ui.js" defer></script>
+    <script src="js/integration.js" defer></script>
+    <script src="js/app.js" defer></script>
+
+    <div class="map-search-container">
+        <input type="text" id="map-search-input" placeholder="Wyszukaj punkt lub adres...">
+        <button id="location-button" title="Pokaż moją lokalizację">
+            <span class="location-icon"></span>
+        </button>
+    </div>
+</body>
+</html>

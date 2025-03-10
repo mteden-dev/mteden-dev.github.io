@@ -1,0 +1,581 @@
+/* Podstawowe style */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+#map {
+    width: 100%;
+    height: 600px;
+    z-index: 1;
+}
+
+.header {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+.controls {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    display: none;
+}
+
+.legend {
+    line-height: 18px;
+    color: #555;
+    background: white;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+
+.status-bar {
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    font-weight: bold;
+    display: none;
+}
+
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-radius: 50%;
+    border-top: 3px solid #3498db;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Style dla przycisków i formularzy */
+button {
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: green;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+/* Style dla wyszukiwarki */
+.search-panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0;
+    background-color: white;
+    z-index: 1000;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+    transition: width 0.3s;
+    overflow: hidden;
+}
+
+.search-panel.open {
+    width: 350px;
+}
+
+.search-panel-content {
+    padding: 15px;
+    width: 320px;
+}
+
+.search-input-container {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.search-input {
+    width: calc(100% - 16px);
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+}
+
+.search-results {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.search-result-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.search-result-item:hover {
+    background-color: #f5f5f5;
+}
+
+.search-result-item h4 {
+    margin: 0 0 5px 0;
+}
+
+.search-result-item p {
+    margin: 0;
+    font-size: 12px;
+    color: #666;
+}
+
+.search-toggle {
+    position: absolute;
+    left: 10px;
+    top: 80px;
+    z-index: 999;
+    background-color: white;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    width: 34px;
+    height: 34px;
+    text-align: center;
+    line-height: 30px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Dodatkowe style dla autouzupełniania */
+.autocomplete-items {
+    position: absolute;
+    border: 1px solid #ddd;
+    border-top: none;
+    z-index: 99;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: white;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.autocomplete-items div {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #ddd;
+}
+
+.autocomplete-items div:hover {
+    background-color: #e9e9e9;
+}
+
+.autocomplete-active {
+    background-color: #e9e9e9 !important;
+}
+
+/* Styl dla wybranego punktu */
+.selected-point-container {
+    padding: 15px;
+    background-color: #e8f5e9;
+    border-bottom: 1px solid #c8e6c9;
+    font-weight: bold;
+    display: none;
+}
+
+/* Style dla klastrów markerów */
+.marker-cluster div {
+    background-color: #FFCC00 !important;
+    color: #4C2000 !important;
+    font-weight: bold !important;
+    border: 3px solid #4C2000 !important;
+    margin: 0 !important;
+}
+
+.marker-cluster {
+    background-color: transparent !important;
+}
+
+.nearest-points-title {
+    margin: 15px 0 10px 0;
+    font-weight: bold;
+}
+
+/* Style dla tooltipów */
+.point-tooltip {
+    background-color: rgba(231, 76, 60, 0.8);
+    border: none;
+    color: white;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+/* Style dla mapy podczas przesuwania/przybliżania */
+.moving .leaflet-marker-icon, 
+.moving .leaflet-tooltip {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* Style dla przycisków cache */
+.file-input-container {
+    display: inline-block;
+    position: relative;
+}
+
+.file-input-button {
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-block;
+}
+
+.file-input-button:hover {
+    background-color: #45a049;
+}
+
+/* Optymalizacja dla mobilnych urządzeń */
+@media (max-width: 768px) {
+    .marker-cluster div {
+        width: 28px !important;
+        height: 28px !important;
+        line-height: 28px !important;
+        font-size: 10px !important;
+    }
+    
+    .search-panel.open {
+        width: 280px;
+    }
+    
+    .search-panel-content {
+        width: 250px;
+    }
+}
+
+/* Style dla trybu modalnego */
+.modal-mode {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.modal-mode .header {
+    padding: 10px;
+}
+
+.modal-mode #map {
+    height: calc(100vh - 140px);
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+    line-height: 30px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 1000;
+}
+
+/* Style dla przycisku viewport-points-btn można pozostawić (nie będzie używany) */
+.viewport-points-btn {
+    display: none; /* Ukryj całkowicie */
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    padding: 8px 16px;
+    background-color: white;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    cursor: pointer;
+}
+
+.modal-mode .viewport-points-btn {
+    top: 50px;
+}
+
+#search-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 300px;
+    height: 100%;
+    background: white;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+}
+
+#search-panel.open {
+    transform: translateX(0);
+}
+
+/* Ensure the toggle button is visible and clickable */
+#search-toggle {
+    position: absolute;
+    z-index: 1001;
+    top: 10px;
+    left: 10px;
+    background: white;
+    border: none;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 3px;
+    box-shadow: 0 0 3px rgba(0,0,0,0.3);
+}
+
+/* Add these styles at the end of your CSS file */
+
+/* Hide old search panel and toggle */
+#search-panel, #search-toggle {
+    display: none;
+}
+
+/* New search container on map */
+.map-search-container {
+    position: absolute;
+    top: 12px;
+    left: 60px; /* Changed from 'right: 12px' to position on the left */
+    z-index: 1001; /* Increased z-index to ensure it's above other elements */
+    display: flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.8); /* Added semi-transparent background */
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+#map-search-input {
+    height: 36px;
+    width: 240px;
+    padding: 0 10px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    margin-right: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    font-size: 14px;
+}
+
+#map-search-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+#location-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.2);
+    background-color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
+
+#location-button:hover {
+    background-color: #f4f4f4;
+}
+
+.location-icon {
+    width: 18px;
+    height: 18px;
+    background-color: #3498db;
+    border-radius: 50%;
+    position: relative;
+}
+
+.location-icon:before {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background-color: white;
+    border-radius: 50%;
+    top: 5px;
+    left: 5px;
+}
+
+/* Autocomplete for new search input */
+.map-search-container .autocomplete-container {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    width: 240px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1001;
+}
+
+.map-search-container .autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.map-search-container .autocomplete-item:hover {
+    background-color: #f5f5f5;
+}
+
+/* Current location marker */
+.current-location-marker {
+    background: transparent;
+}
+
+.location-marker-inner {
+    width: 16px;
+    height: 16px;
+    background: #3498db;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    position: relative;
+}
+
+.location-marker-inner:after {
+    content: '';
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    left: -10px;
+    top: -10px;
+    background-color: rgba(52, 152, 219, 0.3);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Map search container positioning - ensure it's visible */
+.map-search-container {
+    position: absolute;
+    top: 12px;
+    left: 60px; /* Changed from 'right: 12px' to position on the left */
+    z-index: 1001; /* Increased z-index to ensure it's above other elements */
+    display: flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.8); /* Added semi-transparent background */
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+#map-search-input {
+    height: 36px;
+    width: 240px;
+    padding: 0 10px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    margin-right: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    font-size: 14px;
+}
+
+#location-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.2);
+    background-color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
+
+.location-icon {
+    width: 18px;
+    height: 18px;
+    background-color: #3498db;
+    border-radius: 50%;
+    position: relative;
+}
+
+.location-icon:before {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background-color: white;
+    border-radius: 50%;
+    top: 5px;
+    left: 5px;
+}
+
+/* Autocomplete container */
+#map-search-autocomplete.autocomplete-container {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    width: 240px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1001;
+}
+
+.autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.autocomplete-item:hover {
+    background-color: #f5f5f5;
+}

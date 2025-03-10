@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test integracji Mapy Pudo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-container {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            height: 90%;
+            max-width: 1000px;
+            background: white;
+            z-index: 1001;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .modal-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 1002;
+        }
+        .loading-indicator {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1003;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 5px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .selected-point-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test integracji Mapy Pudo</h1>
+    
+    <form id="pickup-form">
+        <div class="form-group">
+            <label for="pickup-point">Punkt odbioru:</label>
+            <input type="text" id="pickup-point" readonly placeholder="Wybierz punkt odbioru" onclick="PudoIntegration.openPudoMap()">
+            <input type="hidden" id="pickup-point-data">
+            <div id="selected-point-info" class="selected-point-info"></div>
+        </div>
+        
+        <div class="form-group">
+            <label for="country">Kraj:</label>
+            <select id="country">
+                <option value="pl">Polska</option>
+                <option value="fr">Francja</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="carrier">Przewoźnik:</label>
+            <select id="carrier">
+                <option value="">Wszystkie</option>
+                <option value="inpost">InPost</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="city">Miasto:</label>
+            <input type="text" id="city" placeholder="Opcjonalnie - podaj miasto">
+        </div>
+        
+        <div class="form-group">
+            <label for="address">Adres:</label>
+            <input type="text" id="address" placeholder="Opcjonalnie - podaj dokładny adres">
+        </div>
+        
+        <button type="button" onclick="PudoIntegration.openPudoMap()">Wybierz punkt odbioru</button>
+    </form>
+    
+    <div id="modal-overlay" class="modal-overlay" aria-hidden="true" role="dialog">
+        <div id="loading-indicator" class="loading-indicator">
+            <span class="spinner"></span> Ładowanie mapy...
+        </div>
+        <div id="modal-container" class="modal-container">
+            <button id="close-modal" class="close-button" onclick="PudoIntegration.closeModal()" aria-label="Zamknij">×</button>
+            <iframe id="pudo-iframe" class="modal-iframe" src="about:blank" title="Mapa punktów odbioru" aria-label="Mapa punktów odbioru"></iframe>
+        </div>
+    </div>
+    
+    <script>
+        // Obiekt obsługujący integrację z mapą Pudo
+        const PudoIntegration = {
+            // Inicjalizacja - ustaw nasłuchiwanie na zdarzenia
+            init: function() {
+                window.addEventListener('message', this.handleMessage.bind(this));
+                
+                // Dodaj nasłuchiwanie zdarzenia ładowania iframe
+                document.getElementById('pudo-iframe').addEventListener('load', function() {
+                    document.getElementById('loading-indicator').style.display = 'none';
+                });
+            },
+            
+            // Funkcja otwierająca mapę w modalu
+            openPudoMap: function() {
+                const country = document.getElementById('country').value;
+                const carrier = document.getElementById('carrier').value;
+                const city = document.getElementById('city').value;
+                const address = document.getElementById('address').value;
+                
+                // Buduj URL z parametrami
+                let url = 'index.html?mode=modal';
+                if (country) url += `&country=${encodeURIComponent(country)}`;
+                if (carrier) url += `&carrier=${encodeURIComponent(carrier)}`;
+                if (city) url += `&city=${encodeURIComponent(city)}`;
+                if (address) url += `&address=${encodeURIComponent(address)}`;
+                
+                // Pokaż wskaźnik ładowania
+                document.getElementById('loading-indicator').style.display = 'block';
+                
+                // Ustaw URL iframe
+                document.getElementById('pudo-iframe').src = url;
+                
+                // Pokaż modal
+                document.getElementById('modal-overlay').style.display = 'block';
+                document.getElementById('modal-container').style.display = 'block';
+                
+                // Dostępność - ustaw focus na iframe po załadowaniu
+                setTimeout(() => {
+                    document.getElementById('pudo-iframe').focus();
+                }, 100);
+                
+                // Zmień rolę aria-hidden dla poprawnej dostępności
+                document.getElementById('modal-overlay').setAttribute('aria-hidden', 'false');
+            },
+            
+            // Funkcja zamykająca modal
+            closeModal: function() {
+                document.getElementById('modal-overlay').style.display = 'none';
+                document.getElementById('modal-container').style.display = 'none';
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('pudo-iframe').src = 'about:blank';
+                
+                // Dostępność - przywróć focus na przycisk wyboru punktu
+                document.getElementById('pickup-point').focus();
+                
+                // Zmień rolę aria-hidden dla poprawnej dostępności
+                document.getElementById('modal-overlay').setAttribute('aria-hidden', 'true');
+            },
+            
+            // Obsługa wiadomości z iframe
+            handleMessage: function(event) {
+                try {
+                    // Sprawdź czy wiadomość pochodzi z naszego iframe
+                    if (event.origin === window.location.origin) {
+                        const data = event.data;
+                        
+                        if (data.action === 'selectPoint') {
+                            this.handleSelectedPoint(data.point);
+                        } else if (data.action === 'closeModal') {
+                            this.closeModal();
+                        } else if (data.action === 'error') {
+                            console.error('Błąd w iframe:', data.message);
+                            alert('Wystąpił błąd: ' + data.message);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Błąd podczas przetwarzania wiadomości z iframe:', error);
+                    alert('Wystąpił błąd podczas komunikacji z mapą');
+                }
+            },
+            
+            // Obsługa wybranego punktu
+            handleSelectedPoint: function(point) {
+                if (!point) {
+                    console.error('Otrzymano pusty punkt');
+                    return;
+                }
+                
+                try {
+                    // Uzupełnij pole input danymi wybranego punktu
+                    document.getElementById('pickup-point').value = 
+                        `${point.name || point.id} - ${point.address || ''}, ${point.city || ''}`;
+                    
+                    // Zapisz wszystkie dane punktu w ukrytym polu
+                    document.getElementById('pickup-point-data').value = JSON.stringify(point);
+                    
+                    // Wyświetl dodatkowe informacje o punkcie
+                    const infoElement = document.getElementById('selected-point-info');
+                    infoElement.innerHTML = `
+                        <p><strong>ID:</strong> ${point.id}</p>
+                        <p><strong>Adres:</strong> ${point.address || 'Brak'}</p>
+                        <p><strong>Miasto:</strong> ${point.city || 'Brak'}</p>
+                        <p><strong>Kod pocztowy:</strong> ${point.postCode || 'Brak'}</p>
+                        ${point.description ? `<p><strong>Opis:</strong> ${point.description}</p>` : ''}
+                    `;
+                    infoElement.style.display = 'block';
+                    
+                    // Zamknij modal
+                    this.closeModal();
+                } catch (error) {
+                    console.error('Błąd podczas przetwarzania wybranego punktu:', error);
+                    alert('Wystąpił błąd podczas wybierania punktu');
+                }
+            }
+        };
+        
+        // Inicjalizacja po załadowaniu strony
+        document.addEventListener('DOMContentLoaded', function() {
+            PudoIntegration.init();
+        });
+        
+        // Obsługa klawisza Escape do zamykania modalu
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                PudoIntegration.closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
