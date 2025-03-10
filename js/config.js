@@ -9,13 +9,21 @@ const Config = {
         urls: {
             pl: 'https://api.globkurier.pl/v1/points?productId=420',
             fr: 'https://api.globkurier.pl/v1/points?productId=3492&countryId=12',
-            other: 'https://api.globkurier.pl/v1/points?productId=3508&countryId=33'
+            other: 'https://api.globkurier.pl/v1/points?productId=3508&countryId=33',
+            dpd: 'https://api.globkurier.pl/v1/points?productId=3341'
+        },
+        // If the API requires headers, add them here
+        headers: {
+            'Content-Type': 'application/json'
         },
         // Konfiguracja API dla konkretnych przewoźników
         carriers: {
             inpost: {
                 pl: 'https://api.globkurier.pl/v1/points?productId=420',
                 fr: 'https://api.globkurier.pl/v1/points?productId=3492&countryId=12'
+            },
+            dpd: {
+                pl: 'https://api.globkurier.pl/v1/points?productId=3341'
             }
         }
     },
@@ -35,15 +43,14 @@ const Config = {
             chunkedLoading: true,
             zoomToBoundsOnClick: true
         },
-        // Konfiguracja dla wyświetlania punktów w okolicy
-        viewportSearchRadius: 0.1, // Promień w stopniach dla wyszukiwania punktów w widocznym obszarze
-        cityZoom: 13, // Poziom przybliżenia dla miasta
-        addressZoom: 16 // Poziom przybliżenia dla adresu
+        viewportSearchRadius: 0.1,
+        cityZoom: 13,
+        addressZoom: 16
     },
     
     // Domyślne wartości dla mapy
     mapDefaults: {
-        center: [52.0689, 19.4803], // Środek Polski
+        center: [52.0689, 19.4803],
         zoom: 7,
         minZoom: 6,
         maxZoom: 18,
@@ -52,8 +59,8 @@ const Config = {
             fr: 'fr'
         },
         countryBounds: {
-            pl: [[49.0, 14.0], [55.0, 24.0]], // przybliżone granice Polski
-            fr: [[41.0, -5.0], [51.0, 10.0]]  // przybliżone granice Francji
+            pl: [[49.0, 14.0], [55.0, 24.0]],
+            fr: [[41.0, -5.0], [51.0, 10.0]]
         }
     },
     
@@ -65,7 +72,6 @@ const Config = {
             countrycodes: 'pl', 
             limit: 3
         },
-        // Funkcja pomocnicza do dynamicznego ustawiania kodu kraju
         getGeocodingParams: function(country) {
             return {
                 format: 'json',
@@ -75,15 +81,15 @@ const Config = {
         },
         nearestPointsLimit: 5, 
         approximateSearchRadius: {
-            lat: 0.18, // ok. 20km w szerokości geograficznej
-            lon: 0.3   // ok. 20km w długości geograficznej
+            lat: 0.18,
+            lon: 0.3
         }
     },
     
     // Konfiguracja cache
     cache: {
         filename: 'paczkomaty_cache.json',
-        version: '1.1',  // Zwiększona wersja, aby uwzględnić dodanie nowego kraju
+        version: '1.1',
         countryVersions: {
             pl: '1.0',
             fr: '1.0',
@@ -101,7 +107,7 @@ const Config = {
     
     // Tryb aplikacji
     mode: {
-        default: 'standalone', // standalone lub modal
-        modalSelectButtonText: 'Wybierz ten punkt' // Tekst przycisku wyboru w trybie modalnym
+        default: 'standalone',
+        modalSelectButtonText: 'Wybierz ten punkt'
     }
 };

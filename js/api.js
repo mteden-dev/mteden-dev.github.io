@@ -58,46 +58,40 @@ const ApiService = {
     },
     
     /**
-     * Pobieranie punktów z konkretnego URL
-     * @param {string} url - URL API
+     * Pobieranie danych z URL API
+     * @param {string} url - Adres URL API
      * @returns {Promise<Array>} - Promise z tablicą punktów
      */
     fetchPointsFromUrl: async function(url) {
         try {
+            console.log(`Fetching points from URL: ${url}`);
             const response = await fetch(url);
             
             if (!response.ok) {
-                throw new Error(`Błąd HTTP: ${response.status}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            // Pobierz surowy tekst odpowiedzi
-            const responseText = await response.text();
+            const data = await response.json();
+            console.log(`Response received for ${url}:`, data);
             
-            // Próbuj sparsować jako JSON
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error("Nie można sparsować odpowiedzi jako JSON:", parseError);
-                throw new Error('Otrzymane dane nie są w formacie JSON');
-            }
+            // Extract points from the response
+            let extractedPoints = this.extractPoints(data);
             
-            // Wyodrębnij punkty z odpowiedzi
-            const points = this.extractPoints(data);
+            // Ensure required fields exist on all points
+            extractedPoints = extractedPoints.map(point => {
+                // Check if this point has DPD in its name but doesn't have a proper type
+                if (point.name && point.name.toLowerCase().includes('dpd') && 
+                    (!point.type || point.type === 'PUDO')) {
+                    return {...point, type: 'DPD'};
+                }
+                return point;
+            });
             
-            // Ustal kraj na podstawie URL
-            const countryId = url.includes('countryId=12') ? 'fr' : 
-                             url.includes('countryId=33') ? 'other' : 'pl';
+            console.log(`Extracted ${extractedPoints.length} points from response`);
+            return extractedPoints;
             
-            // Dodaj informację o kraju do każdego punktu
-            return points.map(point => ({
-                ...point,
-                countryId: countryId,
-                countryName: countryId === 'pl' ? 'Polska' : 
-                            countryId === 'fr' ? 'Francja' : 'Inny kraj'
-            }));
         } catch (error) {
-            console.error(`Błąd pobierania z ${url}:`, error);
+            console.error('Error fetching points:', error);
             throw error;
         }
     },

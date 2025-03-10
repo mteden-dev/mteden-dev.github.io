@@ -1,4 +1,12 @@
 /* Podstawowe style */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -7,8 +15,13 @@ body {
 
 #map {
     width: 100%;
-    height: 600px;
+    height: 100vh;
     z-index: 1;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
 
 .header {
@@ -289,12 +302,12 @@ select {
     overflow: hidden;
 }
 
-.modal-mode .header {
-    padding: 10px;
+.modal-mode #map {
+    height: 100vh; /* Fill entire viewport */
 }
 
-.modal-mode #map {
-    height: calc(100vh - 140px);
+.modal-mode .header {
+    padding: 10px;
 }
 
 .modal-close-btn {
@@ -608,15 +621,26 @@ select {
 /* Left Panel Styles */
 .left-panel {
     position: absolute;
-    left: 0;
-    top: 0;
-    width: 320px;
-    height: 100%;
+    left: 16px;
+    top: 16px;
+    bottom: 16px;
+    width: 310px; /* Slightly reduced to account for margins */
     background-color: white;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     z-index: 1000;
     overflow-y: auto;
-    padding-bottom: 20px;
+    padding-bottom: 10px;
+    /* Add smooth scrolling for better UX */
+    scroll-behavior: smooth;
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    &::-webkit-scrollbar {
+        display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    max-height: calc(100vh - 32px); /* Ensure it respects viewport height */
 }
 
 .panel-section {
@@ -629,6 +653,18 @@ select {
     margin-bottom: 15px;
     font-size: 16px;
     color: #333;
+}
+
+/* Round the corners of the first and last panel sections */
+.panel-section:first-child {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.panel-section:last-child {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-bottom: none;
 }
 
 /* Search Section */
@@ -674,6 +710,8 @@ select {
     cursor: pointer;
     padding: 5px;
     border-radius: 4px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 8px;
 }
 
 .carrier-logo img {
@@ -690,6 +728,13 @@ select {
 
 .carrier-logo.active {
     background-color: #e8f4fd;
+    border-left: 3px solid #3498db;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2);
+}
+
+.carrier-logo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 /* Nearest Points Section */
@@ -708,10 +753,14 @@ select {
     padding: 10px;
     border-bottom: 1px solid #eee;
     cursor: pointer;
+    transition: background-color 0.2s ease;
+    border-radius: 6px;
+    margin: 5px 0;
 }
 
 .nearest-point-item:hover {
     background-color: #f5f5f5;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .nearest-point-item h4 {
@@ -732,20 +781,21 @@ select {
 
 /* Adjust map to accommodate the panel */
 #map {
-    margin-left: 320px;
-    width: calc(100% - 320px);
+    margin-left: 0;
+    width: 100%;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .left-panel {
         width: 280px;
-        transform: translateX(-100%);
+        left: -296px; /* Hide off-screen by default */
         transition: transform 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }
     
     .left-panel.open {
-        transform: translateX(0);
+        transform: translateX(312px);
     }
     
     #map {
@@ -778,15 +828,26 @@ select {
 /* Ensure the left panel is properly visible */
 .left-panel {
     position: absolute;
-    left: 0;
-    top: 0;
-    width: 320px;
-    height: 100%;
+    left: 16px;
+    top: 16px;
+    bottom: 16px;
+    width: 310px; /* Slightly reduced to account for margins */
     background-color: white;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     z-index: 1000;
     overflow-y: auto;
-    padding-bottom: 20px;
+    padding-bottom: 10px;
+    /* Add smooth scrolling for better UX */
+    scroll-behavior: smooth;
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    &::-webkit-scrollbar {
+        display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    max-height: calc(100vh - 32px); /* Ensure it respects viewport height */
 }
 
 /* Panel autocomplete styles */
@@ -848,4 +909,17 @@ select {
     justify-content: center;
     border: 2px solid white;
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+/* Ensure modal takes full height */
+.modal-container {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content {
+    flex: 1;
+    position: relative; /* For absolute positioning of map */
 }

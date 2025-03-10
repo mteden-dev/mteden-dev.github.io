@@ -80,48 +80,38 @@ class App {
         console.log('Initializing application');
         
         try {
-            // Inicjalizacja mapy
+            // Initialize map and UI first
             if (this.mapService && typeof this.mapService.initialize === 'function') {
                 this.mapService.initialize();
-            } else {
-                console.error('MapService or initialize method not available');
             }
             
-            // Add explicit UIService initialization
             if (this.uiService && typeof this.uiService.initialize === 'function') {
                 this.uiService.initialize();
-            } else {
-                console.error('UIService or initialize method not available');
             }
             
-            // Initialize the new search interface
             if (this.searchService && typeof this.searchService.initNewSearchInterface === 'function') {
                 this.searchService.initNewSearchInterface();
             }
             
-            // Add this right after the map initialization in app.js initialize method
-
-            // Create search elements if they don't exist yet
             if (SearchService && typeof SearchService.createSearchElements === 'function') {
                 SearchService.createSearchElements();
-            } else {
-                console.error('SearchService.createSearchElements not available');
             }
             
-            // Załaduj punkty dla wybranego kraju
+            // First load main points
             await this.loadPointsForSelectedCountry();
             
-            // Dodaj obsługę zdarzeń
+            // Then load DPD points once
+            await this.loadDPDPoints();
+            
+            // Set up event listeners
             this.setupEventListeners();
             
-            // Inicjalizacja serwisu integracji ORAZ załadowanie punktów
+            // Initialize integration service
             if (this.integrationService && typeof this.integrationService.initialize === 'function') {
                 this.integrationService.initialize();
             }
             
-            // Ustaw status
             this.updateStatus('Aplikacja gotowa', false);
-            
             console.log('Application initialized');
         } catch (error) {
             console.error('Error during app initialization:', error);
@@ -463,6 +453,57 @@ class App {
             this.loadingIndicator.style.display = loading ? 'inline-block' : 'none';
         }
     }
+
+    /**
+     * Load DPD points from API
+     */
+    loadDPDPoints() {
+        console.log('Loading DPD points from:', Config.api.urls.dpd);
+        Utils.updateStatus('Ładowanie punktów DPD...', true);
+        
+        // Check if we already have DPD points to avoid duplicates
+        const hasDPDPoints = this.markersService.allPoints.some(point => 
+            point && point.name && point.name.toLowerCase().includes('dpd')
+        );
+        
+        if (hasDPDPoints) {
+            console.log('DPD points already loaded, skipping fetch');
+            Utils.updateStatus('Punkty DPD już załadowane', false);
+            return Promise.resolve();
+        }
+        
+        return fetch(Config.api.urls.dpd)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`API responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Loaded ${data.length} DPD points`);
+                
+                // Process points to ensure they have the right type
+                const processedPoints = data.map(point => {
+                    return {...point, type: 'DPD'};
+                });
+                
+                // Remove any existing DPD points to avoid duplicates
+                const nonDPDPoints = this.markersService.allPoints.filter(point => 
+                    !(point && point.name && point.name.toLowerCase().includes('dpd'))
+                );
+                
+                // Add to existing points
+                this.markersService.setPoints([...nonDPDPoints, ...processedPoints]);
+                
+                Utils.updateStatus(`Załadowano ${processedPoints.length} punktów DPD`, false);
+                return processedPoints;
+            })
+            .catch(error => {
+                console.error('Error loading DPD points:', error);
+                Utils.updateStatus('Błąd ładowania punktów DPD', false);
+                return [];
+            });
+    }
 }
 
 // Dodaj globalną zmienną dla instancji App
@@ -517,3 +558,51 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+/**
+ * Adjust map size to fill the viewport or modal
+ */
+function adjustMapSize() {
+    const mapElement = document.getElementById('map');
+    if (!mapElement) return;
+    
+    const isModalMode = document.body.classList.contains('modal-mode');
+    
+    if (isModalMode) {
+        // In modal mode, fill the modal container
+        const modalContent = document.querySelector('.modal-content');
+        if (modalContent) {
+            mapElement.style.height = `${modalContent.clientHeight}px`;
+        } else {
+            // If no modal content container, use viewport height minus estimated header/footer
+            mapElement.style.height = 'calc(100vh - 50px)';
+        }
+    } else {
+        // In full page mode, use full viewport height
+        mapElement.style.height = '100vh';
+    }
+    
+    // Notify the map that its container size has changed
+    if (MapService && MapService.map) {
+        MapService.map.invalidateSize();
+    }
+}
+
+// Add this to your initialization code
+window.addEventListener('load', adjustMapSize);
+window.addEventListener('resize', adjustMapSize);
+
+// Call this function whenever UI elements that might affect layout are toggled
+function onUIChange() {
+    setTimeout(adjustMapSize, 100);
+}
+
+// Add to the map initialization method
+if (MapService && MapService.initialize) {
+    const originalInitialize = MapService.initialize;
+    MapService.initialize = function() {
+        const result = originalInitialize.apply(this, arguments);
+        adjustMapSize();
+        return result;
+    };
+}

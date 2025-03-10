@@ -91,41 +91,48 @@ const MarkersService = {
      */
     addSingleMarker: function(point) {
         if (!point.latitude || !point.longitude) {
-            console.warn('Punkt bez współrzędnych:', point);
+            console.warn("Skipping point without coordinates:", point.id);
             return;
         }
         
-        // Określ kolor markera na podstawie typu punktu
-        const markerColor = this.getMarkerColor(point);
+        // Store current point temporarily for marker icon creation
+        this.currentPoint = point;
         
-        // Utwórz niestandardowy marker
-        const marker = L.circleMarker([point.latitude, point.longitude], {
-            radius: 8,
-            fillColor: markerColor,
-            color: '#fff',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
+        // Create marker
+        const marker = L.marker([point.latitude, point.longitude], {
+            icon: this.getMarkerIcon(point.type)
         });
         
-        // Utwórz treść popupu
-        const popupContent = this.createPopupContent(point);
+        // Clear temporary reference
+        this.currentPoint = null;
         
-        // Dodaj popup do markera
+        // Create popup content
+        const popupContent = this.createPopupContent(point);
         marker.bindPopup(popupContent);
         
-        // Zapisz marker w słowniku
-        this.markersById[point.id] = {
-            marker: marker,
-            point: point
-        };
+        // Add click event listener to marker BEFORE adding it to the cluster
+        marker.on('click', function() {
+            console.log("Marker clicked:", point.id);
+            
+            // Open the popup
+            marker.openPopup();
+            
+            // Call UIService.selectPoint directly
+            if (UIService && typeof UIService.selectPoint === 'function') {
+                UIService.selectPoint(point);
+            } else {
+                console.error("UIService.selectPoint not available");
+            }
+        });
         
-        // Dodaj marker do grupy
-        if (this.markerClusterGroup) {
-            this.markerClusterGroup.addLayer(marker);
+        // Add to marker cluster
+        this.markerClusterGroup.addLayer(marker);
+        
+        // Store reference to marker for later use
+        if (!this.markersById) {
+            this.markersById = {};
         }
-        
-        return marker;
+        this.markersById[point.id] = { marker, point };
     },
     
     /**
@@ -168,9 +175,11 @@ const MarkersService = {
             return '#3498db'; // niebieski
         } else if (lowerType.includes('orlen')) {
             return '#2ecc71'; // zielony
+        } else if (point.name && point.name.toLowerCase().includes('dpd')) {
+            return '#BB0033'; // kolor DPD
         }
         
-        return '#f39c12'; // pomarańczowy dla innych
+        return '#f39c12'; // domyślny pomarańczowy
     },
     
     /**
@@ -243,17 +252,27 @@ const MarkersService = {
      * @param {string} carrierId - Carrier identifier (e.g., 'inpost', 'dhl')
      */
     filterByCarrier: function(carrierId) {
+        console.log(`Filtering by carrier: ${carrierId}`);
+        
+        // For "all" carrier, make sure we include DPD points
         if (carrierId === 'all') {
+            // Debug: Check if we have DPD points
+            const dpdPoints = this.allPoints.filter(point => 
+                point && point.name && point.name.toLowerCase().includes('dpd')
+            );
+            console.log(`Total points: ${this.allPoints.length}, DPD points: ${dpdPoints.length}`);
+            
             // Show all markers
-            this.addMarkers('all');
+            this.addMarkers(this.allPoints);
             return;
         }
         
-        // Filter points by carrier
+        // For other carriers, filter as usual
         const filteredPoints = this.allPoints.filter(point => {
-            if (!point.type) return false;
+            if (!point) return false;
             
-            const lowerType = point.type.toLowerCase();
+            const lowerType = point.type ? point.type.toLowerCase() : '';
+            const lowerName = point.name ? point.name.toLowerCase() : '';
             
             switch(carrierId) {
                 case 'inpost':
@@ -262,30 +281,82 @@ const MarkersService = {
                     return lowerType.includes('dhl');
                 case 'orlen':
                     return lowerType.includes('orlen');
+                case 'dpd':
+                    return lowerType.includes('dpd') || lowerName.includes('dpd');
                 default:
                     return true;
             }
         });
+
+        console.log(`Found ${filteredPoints.length} points for carrier: ${carrierId}`);
         
-        // Add filtered markers to map
-        if (this.markerClusterGroup) {
-            MapService.map.removeLayer(this.markerClusterGroup);
-        }
-        
-        this.markerClusterGroup = L.markerClusterGroup(Config.map.clusterOptions);
-        
-        filteredPoints.forEach(point => {
-            this.addSingleMarker(point);
+        // Use addMarkers function with the filtered points array
+        this.addMarkers(filteredPoints);
+    },
+
+    /**
+     * Filter DPD points specifically
+     */
+    filterDPDPoints: function() {
+        const dpdPoints = this.allPoints.filter(point => {
+            if (!point) return false;
+            return point.name && point.name.toLowerCase().includes('dpd');
         });
         
-        MapService.map.addLayer(this.markerClusterGroup);
+        console.log(`Found ${dpdPoints.length} DPD points`);
         
-        // Update UI
-        Utils.updateStatus(`Wyświetlono ${filteredPoints.length} punktów przewoźnika`, false);
+        // Use addMarkers function with the filtered points array
+        this.addMarkers(dpdPoints);
+    },
+
+    /**
+     * Tworzenie ikony markera na podstawie typu
+     * @param {string} type - Typ punktu (np. 'inpost', 'dhl', etc.)
+     * @returns {L.Icon} - Ikona Leaflet
+     */
+    getMarkerIcon: function(type) {
+        // Default color if no type is provided
+        let markerColor = '#f39c12'; // default orange
         
-        // Update nearest points list
-        if (MapService && typeof MapService.updateNearestPointsList === 'function') {
-            MapService.updateNearestPointsList();
+        // Get the point (we need to check the full point object to look at name property)
+        const point = this.currentPoint || {};
+        
+        // First check if it's a DPD point by name
+        if (point.name && point.name.toLowerCase().includes('dpd')) {
+            return this.createMarkerIcon('#BB0033'); // DPD color
         }
+        
+        if (type) {
+            // Convert type to lowercase for case-insensitive comparisons
+            const lowerType = type.toLowerCase();
+            
+            // Set color based on point type
+            if (lowerType.includes('inpost') || lowerType.includes('paczkomat')) {
+                markerColor = '#e74c3c'; // red for InPost
+            } else if (lowerType.includes('dhl')) {
+                markerColor = '#3498db'; // blue for DHL
+            } else if (lowerType.includes('orlen')) {
+                markerColor = '#2ecc71'; // green for Orlen
+            } else if (lowerType === 'dpd' || lowerType.includes('dpd')) {
+                markerColor = '#BB0033'; // DPD color
+            }
+        }
+        
+        return this.createMarkerIcon(markerColor);
+    },
+
+    /**
+     * Create a marker icon with the specified color
+     * @param {string} color - Hex color code
+     * @returns {L.DivIcon} - Leaflet div icon
+     */
+    createMarkerIcon: function(color) {
+        return L.divIcon({
+            className: 'custom-marker',
+            html: `<div style="background-color:${color};width:20px;height:20px;border-radius:50%;border:2px solid white;"></div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -12]
+        });
     }
 };

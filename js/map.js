@@ -200,6 +200,10 @@ const MapService = {
                     <span>Orlen Paczka</span>
                 </div>
                 <div class="legend-item">
+                    <span class="legend-icon" style="background-color: #BB0033;"></span>
+                    <span>Punkt DPD</span>
+                </div>
+                <div class="legend-item">
                     <span class="legend-icon" style="background-color: #f39c12;"></span>
                     <span>Inny punkt</span>
                 </div>
@@ -396,7 +400,29 @@ const MapService = {
         const marker = L.marker([point.latitude, point.longitude], {
             icon: numberedIcon,
             zIndexOffset: 1000 + number // Make sure numbered markers appear on top
-        }).addTo(this.map);
+        });
+        
+        // Create and bind popup content
+        if (MarkersService && typeof MarkersService.createPopupContent === 'function') {
+            const popupContent = MarkersService.createPopupContent(point);
+            marker.bindPopup(popupContent);
+        }
+        
+        // Add click event handler to open popup and select point
+        marker.on('click', function() {
+            console.log("Numbered marker clicked:", point.id);
+            
+            // Open the popup
+            marker.openPopup();
+            
+            // Call UIService.selectPoint
+            if (UIService && typeof UIService.selectPoint === 'function') {
+                UIService.selectPoint(point);
+            }
+        });
+        
+        // Add marker to map
+        marker.addTo(this.map);
         
         // Store the numbered marker for later removal
         if (!this.numberedMarkers) this.numberedMarkers = [];

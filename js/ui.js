@@ -129,9 +129,18 @@ const UIService = {
      * @param {Object} point - Wybrany punkt
      */
     selectPoint: function(point) {
+        console.log("Point selected:", point.id);
+        
+        // Ensure we have a point with valid coordinates
+        if (!point || !point.latitude || !point.longitude) {
+            console.error("Invalid point or missing coordinates:", point);
+            return;
+        }
+        
         const selectedPointContainer = document.getElementById('selected-point-container');
         const selectedPointName = document.getElementById('selected-point-name');
         
+        // Update selected point info
         if (selectedPointName) {
             selectedPointName.textContent = point.name || point.id;
         }
@@ -140,51 +149,59 @@ const UIService = {
             selectedPointContainer.style.display = 'block';
         }
         
-        // Zapisz ostatnio wybrany punkt
+        // Save last selected point
         this.saveLastSelectedPoint(point);
         
-        // Centruj mapę na wybranym punkcie z odpowiednim przybliżeniem
-        if (point.latitude && point.longitude) {
-            // Set zoom level to 17 to ensure clustering is disabled
-            MapService.setView([point.latitude, point.longitude], 17);
+        // Center map on the selected point
+        if (MapService && MapService.map) {
+            // Always ensure we zoom to at least level 17, which is when clustering is disabled
+            const currentZoom = MapService.map.getZoom();
+            const targetZoom = Math.max(17, currentZoom); // Force level 17 minimum
             
-            // Znajdź marker i otwórz popup
+            // Set view with animation
+            MapService.setView([point.latitude, point.longitude], targetZoom);
+            
+            // Ensure the marker popup is opened
             if (MarkersService && MarkersService.markersById && MarkersService.markersById[point.id]) {
+                console.log("Opening popup for marker:", point.id);
                 MarkersService.markersById[point.id].marker.openPopup();
             }
             
-            // Update the nearest points list to show the selected point
+            // Update nearest points list after zooming
             setTimeout(() => {
                 if (MapService && typeof MapService.updateNearestPointsList === 'function') {
                     MapService.updateNearestPointsList();
                     
-                    // Scroll to the selected point in the nearest points list
+                    // Highlight the point in the nearest list
                     setTimeout(() => {
                         const nearestList = document.getElementById('nearest-points-list');
-                        if (nearestList) {
-                            // Find the item containing the point name or ID
+                        if (nearestList && nearestList.style.display !== 'none') {
+                            // Find the selected point in the list
                             const pointItems = nearestList.querySelectorAll('.nearest-point-item');
+                            let found = false;
+                            
                             for (let i = 0; i < pointItems.length; i++) {
                                 if (pointItems[i].textContent.includes(point.name || point.id)) {
-                                    // Highlight the found point
+                                    found = true;
                                     pointItems[i].classList.add('highlighted');
                                     pointItems[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
                                     
-                                    // Remove highlight after 3 seconds
                                     setTimeout(() => {
                                         pointItems[i].classList.remove('highlighted');
                                     }, 3000);
                                     break;
                                 }
                             }
+                            
+                            // If not found, might need to zoom in more
+                            if (!found && MapService.map.getZoom() < 18) {
+                                MapService.setView([point.latitude, point.longitude], 18);
+                            }
                         }
                     }, 300);
                 }
-            }, 300); // Reduced from 500 to 300 to update faster
+            }, 300);
         }
-        
-        // Zamknij panel wyszukiwania
-        this.closeSearchPanel();
         
         // On mobile, make sure the left panel is visible
         const leftPanel = document.getElementById('left-panel');
