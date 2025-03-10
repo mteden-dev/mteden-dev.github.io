@@ -195,11 +195,16 @@ select {
 
 /* Styl dla wybranego punktu */
 .selected-point-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     padding: 15px;
     background-color: #e8f5e9;
     border-bottom: 1px solid #c8e6c9;
     font-weight: bold;
     display: none;
+    z-index: 999; /* Below search box but above map */
 }
 
 /* Style dla klastrów markerów */
@@ -296,7 +301,7 @@ select {
     position: absolute;
     top: 10px;
     right: 10px;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: white;
     border: none;
     border-radius: 50%;
     width: 30px;
@@ -351,7 +356,7 @@ select {
     z-index: 1001;
     top: 10px;
     left: 10px;
-    background: white;
+    background: green;
     border: none;
     cursor: pointer;
     padding: 5px 10px;
@@ -577,4 +582,270 @@ select {
 
 .autocomplete-item:hover {
     background-color: #f5f5f5;
+}
+
+/* Add padding to the map container when point is selected */
+#map.has-selected-point {
+    padding-top: 50px; /* Match height of the selected-point-container */
+}
+
+/* Make sure search container stays on top */
+.map-search-container {
+    position: absolute;
+    top: 12px;
+    left: 60px;
+    z-index: 1001; /* Keep this above everything */
+    display: flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Add at the end of your CSS file */
+
+/* Left Panel Styles */
+.left-panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 320px;
+    height: 100%;
+    background-color: white;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+    overflow-y: auto;
+    padding-bottom: 20px;
+}
+
+.panel-section {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.panel-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 16px;
+    color: #333;
+}
+
+/* Search Section */
+.search-section .search-input-container {
+    display: flex;
+}
+
+#panel-search-input {
+    flex: 1;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px 0 0 4px;
+}
+
+#panel-search-button {
+    height: 38px;
+    padding: 0 15px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+}
+
+#panel-search-button:hover {
+    background-color: #2980b9;
+}
+
+/* Carrier Logos Section */
+.carrier-logos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.carrier-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 60px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.carrier-logo img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.carrier-logo span {
+    font-size: 11px;
+    margin-top: 5px;
+    text-align: center;
+}
+
+.carrier-logo.active {
+    background-color: #e8f4fd;
+}
+
+/* Nearest Points Section */
+.nearest-info {
+    font-size: 13px;
+    color: #777;
+    font-style: italic;
+}
+
+.nearest-points-list {
+    display: none;
+    margin-top: 10px;
+}
+
+.nearest-point-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.nearest-point-item:hover {
+    background-color: #f5f5f5;
+}
+
+.nearest-point-item h4 {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.nearest-point-item p {
+    margin: 0;
+    font-size: 12px;
+    color: #666;
+}
+
+.nearest-point-item .distance {
+    font-weight: bold;
+    color: #3498db;
+}
+
+/* Adjust map to accommodate the panel */
+#map {
+    margin-left: 320px;
+    width: calc(100% - 320px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .left-panel {
+        width: 280px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+    
+    .left-panel.open {
+        transform: translateX(0);
+    }
+    
+    #map {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .panel-toggle {
+        display: block;
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        z-index: 999;
+        background: white;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        font-size: 20px;
+        cursor: pointer;
+    }
+}
+
+/* Add this to completely hide the old search interface */
+.map-search-container {
+    display: none !important;
+}
+
+/* Ensure the left panel is properly visible */
+.left-panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 320px;
+    height: 100%;
+    background-color: white;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+    overflow-y: auto;
+    padding-bottom: 20px;
+}
+
+/* Panel autocomplete styles */
+.panel-autocomplete {
+    width: 100%;
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 5px;
+    display: none;
+}
+
+.panel-autocomplete .autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.panel-autocomplete .autocomplete-item:hover {
+    background-color: #f5f5f5;
+}
+
+/* Style for highlighted items in nearest points list */
+.nearest-point-item.highlighted {
+    background-color: #e8f5e9;
+    border-left: 3px solid #4CAF50;
+    animation: pulse-highlight 1.5s infinite;
+}
+
+@keyframes pulse-highlight {
+    0% {
+        background-color: #e8f5e9;
+    }
+    50% {
+        background-color: #c8e6c9;
+    }
+    100% {
+        background-color: #e8f5e9;
+    }
+}
+
+/* Add these styles for the numbered markers */
+.numbered-marker {
+    background: transparent;
+}
+
+.numbered-marker-inner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: #3498db;
+    color: white;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }

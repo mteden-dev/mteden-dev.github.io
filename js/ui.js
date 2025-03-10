@@ -6,16 +6,21 @@ const UIService = {
      * Inicjalizacja UI
      */
     initialize: function() {
-        // Hide old search panel and toggle
+        // Remove old search elements
         const oldSearchPanel = document.getElementById('search-panel');
         const oldSearchToggle = document.getElementById('search-toggle');
+        const mapSearchContainer = document.querySelector('.map-search-container');
         
-        if (oldSearchPanel) oldSearchPanel.style.display = 'none';
-        if (oldSearchToggle) oldSearchToggle.style.display = 'none';
+        if (oldSearchPanel) oldSearchPanel.parentNode.removeChild(oldSearchPanel);
+        if (oldSearchToggle) oldSearchToggle.parentNode.removeChild(oldSearchToggle);
+        if (mapSearchContainer) mapSearchContainer.parentNode.removeChild(mapSearchContainer);
         
         // Continue with normal initialization
         this.restoreUIState();
         this.initEventListeners();
+        
+        // Initialize the new panel
+        this.initializePanel();
     },
     
     /**
@@ -127,24 +132,65 @@ const UIService = {
         const selectedPointContainer = document.getElementById('selected-point-container');
         const selectedPointName = document.getElementById('selected-point-name');
         
-        selectedPointName.textContent = point.name || point.id;
-        selectedPointContainer.style.display = 'block';
+        if (selectedPointName) {
+            selectedPointName.textContent = point.name || point.id;
+        }
+        
+        if (selectedPointContainer) {
+            selectedPointContainer.style.display = 'block';
+        }
         
         // Zapisz ostatnio wybrany punkt
         this.saveLastSelectedPoint(point);
         
-        // Centruj mapę na wybranym punkcie
+        // Centruj mapę na wybranym punkcie z odpowiednim przybliżeniem
         if (point.latitude && point.longitude) {
-            MapService.setView([point.latitude, point.longitude], 16);
+            // Set zoom level to 17 to ensure clustering is disabled
+            MapService.setView([point.latitude, point.longitude], 17);
             
             // Znajdź marker i otwórz popup
-            if (MarkersService.markersById[point.id]) {
+            if (MarkersService && MarkersService.markersById && MarkersService.markersById[point.id]) {
                 MarkersService.markersById[point.id].marker.openPopup();
             }
+            
+            // Update the nearest points list to show the selected point
+            setTimeout(() => {
+                if (MapService && typeof MapService.updateNearestPointsList === 'function') {
+                    MapService.updateNearestPointsList();
+                    
+                    // Scroll to the selected point in the nearest points list
+                    setTimeout(() => {
+                        const nearestList = document.getElementById('nearest-points-list');
+                        if (nearestList) {
+                            // Find the item containing the point name or ID
+                            const pointItems = nearestList.querySelectorAll('.nearest-point-item');
+                            for (let i = 0; i < pointItems.length; i++) {
+                                if (pointItems[i].textContent.includes(point.name || point.id)) {
+                                    // Highlight the found point
+                                    pointItems[i].classList.add('highlighted');
+                                    pointItems[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    
+                                    // Remove highlight after 3 seconds
+                                    setTimeout(() => {
+                                        pointItems[i].classList.remove('highlighted');
+                                    }, 3000);
+                                    break;
+                                }
+                            }
+                        }
+                    }, 300);
+                }
+            }, 300); // Reduced from 500 to 300 to update faster
         }
         
         // Zamknij panel wyszukiwania
         this.closeSearchPanel();
+        
+        // On mobile, make sure the left panel is visible
+        const leftPanel = document.getElementById('left-panel');
+        if (leftPanel && window.innerWidth <= 768) {
+            leftPanel.classList.add('open');
+        }
     },
     
     /**
@@ -221,5 +267,191 @@ const UIService = {
         // Reset any forced styles
         searchPanel.style.display = '';
         searchPanel.style.transform = '';
+    },
+
+    /**
+     * Zamyka kontener wybranego punktu
+     */
+    closeSelectedPoint: function() {
+        const selectedPointContainer = document.getElementById('selected-point-container');
+        const mapContainer = document.getElementById('map');
+        
+        selectedPointContainer.style.display = 'none';
+        mapContainer.classList.remove('has-selected-point');
+        
+        // Adjust Leaflet map size
+        if (MapService && MapService.map) {
+            setTimeout(() => {
+                MapService.map.invalidateSize();
+            }, 100);
+        }
+    },
+
+    /**
+     * Initialize panel functionality
+     */
+    initializePanel: function() {
+        // Set up carrier logo filters
+        const carrierLogos = document.querySelectorAll('.carrier-logo');
+        carrierLogos.forEach(logo => {
+            logo.addEventListener('click', () => {
+                // Remove active class from all logos
+                carrierLogos.forEach(l => l.classList.remove('active'));
+                
+                // Add active class to clicked logo
+                logo.classList.add('active');
+                
+                // Filter markers by carrier
+                const carrier = logo.getAttribute('data-carrier');
+                if (MarkersService && typeof MarkersService.filterByCarrier === 'function') {
+                    MarkersService.filterByCarrier(carrier);
+                }
+            });
+        });
+        
+        // Set up panel search
+        const panelSearchButton = document.getElementById('panel-search-button');
+        const panelSearchInput = document.getElementById('panel-search-input');
+        const panelAutocomplete = document.getElementById('panel-search-autocomplete');
+
+        if (panelSearchButton && panelSearchInput) {
+            // Handle input for autocomplete
+            let debounceTimer;
+            
+            panelSearchInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                
+                // Clear any existing timer
+                clearTimeout(debounceTimer);
+                
+                // Clear the autocomplete container
+                if (panelAutocomplete) {
+                    panelAutocomplete.innerHTML = '';
+                    panelAutocomplete.style.display = 'none';
+                }
+                
+                if (query.length >= 2) {
+                    debounceTimer = setTimeout(() => {
+                        if (SearchService && typeof SearchService.searchPoints === 'function') {
+                            const results = SearchService.searchPoints(query);
+                            
+                            if (results && results.length > 0 && panelAutocomplete) {
+                                // Display autocomplete results
+                                panelAutocomplete.innerHTML = '';
+                                results.slice(0, 5).forEach(point => {
+                                    const item = document.createElement('div');
+                                    item.className = 'autocomplete-item';
+                                    item.innerHTML = `<strong>${point.name || point.id}</strong><br>${point.address || ''}, ${point.city || ''}`;
+                                    
+                                    item.addEventListener('click', () => {
+                                        panelSearchInput.value = point.name || point.id;
+                                        panelAutocomplete.style.display = 'none';
+                                        if (typeof this.selectPoint === 'function') {
+                                            this.selectPoint(point);
+                                        }
+                                    });
+                                    
+                                    panelAutocomplete.appendChild(item);
+                                });
+                                
+                                panelAutocomplete.style.display = 'block';
+                            }
+                        }
+                        
+                        // Try geocoding for longer queries
+                        if (query.length >= 3 && GeocodingService && typeof GeocodingService.searchAddresses === 'function') {
+                            GeocodingService.searchAddresses(query, (addresses) => {
+                                if (addresses && addresses.length > 0 && panelAutocomplete) {
+                                    // Add a separator if we already have results
+                                    if (panelAutocomplete.children.length > 0) {
+                                        const separator = document.createElement('div');
+                                        separator.style.borderTop = '1px solid #ccc';
+                                        separator.style.margin = '5px 0';
+                                        separator.style.padding = '5px 12px';
+                                        separator.style.color = '#666';
+                                        separator.style.fontSize = '12px';
+                                        separator.textContent = 'Adresy:';
+                                        panelAutocomplete.appendChild(separator);
+                                    }
+                                    
+                                    // Add address results
+                                    addresses.slice(0, 3).forEach(address => {
+                                        const item = document.createElement('div');
+                                        item.className = 'autocomplete-item';
+                                        item.innerHTML = `<em>Adres:</em> ${address.display_name}`;
+                                        
+                                        item.addEventListener('click', () => {
+                                            panelSearchInput.value = address.display_name;
+                                            panelAutocomplete.style.display = 'none';
+                                            
+                                            if (GeocodingService && typeof GeocodingService.showAddressOnMap === 'function') {
+                                                GeocodingService.showAddressOnMap(address.lat, address.lon, address.display_name);
+                                            }
+                                        });
+                                        
+                                        panelAutocomplete.appendChild(item);
+                                    });
+                                    
+                                    panelAutocomplete.style.display = 'block';
+                                }
+                            });
+                        }
+                    }, 300);
+                }
+            });
+            
+            // Handle search button click
+            panelSearchButton.addEventListener('click', () => {
+                const query = panelSearchInput.value.trim();
+                if (query && SearchService && typeof SearchService.performSearch === 'function') {
+                    SearchService.performSearch(query);
+                    
+                    // Hide autocomplete
+                    if (panelAutocomplete) {
+                        panelAutocomplete.style.display = 'none';
+                    }
+                }
+            });
+            
+            // Handle Enter key
+            panelSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const query = panelSearchInput.value.trim();
+                    if (query && SearchService && typeof SearchService.performSearch === 'function') {
+                        SearchService.performSearch(query);
+                        
+                        // Hide autocomplete
+                        if (panelAutocomplete) {
+                            panelAutocomplete.style.display = 'none';
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Add responsive panel toggle for mobile
+        const body = document.body;
+        const panelToggle = document.createElement('button');
+        panelToggle.className = 'panel-toggle';
+        panelToggle.innerHTML = '☰';
+        panelToggle.title = 'Pokaż/ukryj panel';
+        
+        panelToggle.addEventListener('click', () => {
+            const panel = document.getElementById('left-panel');
+            if (panel) {
+                panel.classList.toggle('open');
+            }
+        });
+        
+        if (window.innerWidth <= 768) {
+            body.appendChild(panelToggle);
+        }
+        
+        // Initial update of nearest points
+        setTimeout(() => {
+            if (MapService && typeof MapService.updateNearestPointsList === 'function') {
+                MapService.updateNearestPointsList();
+            }
+        }, 1000);
     }
 };

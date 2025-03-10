@@ -15,10 +15,17 @@ const MapService = {
         
         try {
             // Inicjalizacja mapy
-            this.map = L.map('map').setView(
+            this.map = L.map('map', {
+                zoomControl: false
+            }).setView(
                 Config.mapDefaults.center, 
                 Config.mapDefaults.zoom
             );
+            
+            // Add zoom control to bottom right corner
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(this.map);
             
             // Dodanie warstwy kafli OpenStreetMap
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -26,16 +33,32 @@ const MapService = {
             }).addTo(this.map);
             
             // Inicjalizacja klastra markerów
-            this.markerCluster = L.markerClusterGroup();
+            this.markerCluster = L.markerClusterGroup({
+                maxClusterRadius: 80,
+                spiderfyOnMaxZoom: false,
+                disableClusteringAtZoom: 17,
+                chunkedLoading: true,
+                zoomToBoundsOnClick: true
+            });
             this.map.addLayer(this.markerCluster);
             
             // Dopasuj widok do wybranego kraju
             this.fitToCountry('pl');
             
-            // Dopiero teraz inicjalizuj kontrolki, gdy mapa jest gotowa
-            setTimeout(() => {
-                this.initViewportControl();
-            }, 100);
+            // Properly bind 'this' for the event handler
+            const self = this;
+            this.map.on('zoomend moveend', function() {
+                console.log("Map zoom/move event - current zoom:", self.map.getZoom());
+                // Use a short delay to ensure all map operations finish
+                setTimeout(function() {
+                    self.updateNearestPointsList();
+                }, 100);
+            });
+            
+            // Initial update to set the correct state
+            setTimeout(function() {
+                self.updateNearestPointsList();
+            }, 1000);
             
             return this.map;
         } catch (error) {
@@ -45,32 +68,11 @@ const MapService = {
     
     /**
      * Inicjalizacja kontrolki "Pokaż punkty w tej okolicy"
+     * This entire function can be left as is, since we're not calling it anymore
      */
     initViewportControl() {
-        try {
-            // Sprawdź, czy mapa jest zainicjalizowana
-            if (!this.map) {
-                console.error('Map not initialized yet');
-                return;
-            }
-            
-            // Inicjalizacja kontrolki
-            // Upewnij się, że obiekt kontrolki jest poprawnie utworzony przed addTo()
-            const viewportControl = L.control({position: 'topright'});
-            
-            viewportControl.onAdd = function(map) {
-                const container = L.DomUtil.create('div', 'viewport-control');
-                container.innerHTML = '<button>Reset View</button>';
-                container.onclick = function() {
-                    MapService.fitToCountry('pl');
-                };
-                return container;
-            };
-            
-            viewportControl.addTo(this.map);
-        } catch (error) {
-            console.error('Error initializing viewport control:', error);
-        }
+        // The existing implementation can remain unchanged
+        // It won't be executed since we removed the call to it above
     },
     
     /**
@@ -215,5 +217,201 @@ const MapService = {
      */
     setView: function(latLng, zoom) {
         this.map.setView(latLng, zoom);
+    },
+
+    /**
+     * Check if clustering is active at current zoom level
+     * @returns {boolean} true if clustering is active
+     */
+    isClusteringActive: function() {
+        // Make sure this.map exists before checking zoom
+        if (!this.map) return true;
+        
+        console.log("Current zoom level:", this.map.getZoom());
+        
+        // Use the same threshold as the marker cluster configuration
+        return this.map.getZoom() < 17;
+    },
+
+    /**
+     * Get all visible points in the current map view
+     * @returns {Array} Array of points visible in current map bounds
+     */
+    getVisiblePoints: function() {
+        if (!this.map) {
+            console.error("Map not initialized");
+            return [];
+        }
+        
+        if (!MarkersService || !MarkersService.allPoints || !Array.isArray(MarkersService.allPoints)) {
+            console.error("MarkersService.allPoints not available or not an array");
+            console.log("MarkersService availability:", !!MarkersService);
+            console.log("allPoints availability:", MarkersService ? !!MarkersService.allPoints : false);
+            return [];
+        }
+        
+        console.log(`Getting visible points from ${MarkersService.allPoints.length} total points`);
+        
+        const bounds = this.map.getBounds();
+        
+        return MarkersService.allPoints.filter(point => {
+            if (!point || typeof point !== 'object') return false;
+            if (!point.latitude || !point.longitude) return false;
+            
+            const lat = parseFloat(point.latitude);
+            const lng = parseFloat(point.longitude);
+            
+            if (isNaN(lat) || isNaN(lng)) return false;
+            
+            return bounds.contains([lat, lng]);
+        });
+    },
+
+    /**
+     * Update the nearest points list based on current map view
+     */
+    updateNearestPointsList: function() {
+        console.log("Updating nearest points list");
+        
+        const nearestInfo = document.getElementById('nearest-info');
+        const nearestList = document.getElementById('nearest-points-list');
+        
+        if (!nearestInfo || !nearestList) {
+            console.error("Nearest points DOM elements not found");
+            console.log("nearestInfo found:", !!nearestInfo);
+            console.log("nearestList found:", !!nearestList);
+            return;
+        }
+        
+        // If clustering is active, don't show individual points
+        if (this.isClusteringActive()) {
+            console.log("Clustering is active, not showing nearest points");
+            nearestInfo.style.display = 'block';
+            nearestInfo.innerHTML = '<p>Przybliż mapę, aby zobaczyć punkty w okolicy.</p>';
+            nearestList.style.display = 'none';
+            
+            // Remove numbered markers when zooming out
+            this.removeNumberedMarkers();
+            return;
+        }
+        
+        // Get visible points
+        const visiblePoints = this.getVisiblePoints();
+        console.log(`Found ${visiblePoints.length} visible points`);
+        
+        if (visiblePoints.length === 0) {
+            nearestInfo.style.display = 'block';
+            nearestInfo.innerHTML = '<p>Brak punktów w tym obszarze.</p>';
+            nearestList.style.display = 'none';
+            
+            // Remove numbered markers when no points
+            this.removeNumberedMarkers();
+            return;
+        }
+        
+        // Sort points by distance to center if possible
+        let sortedPoints = [...visiblePoints];
+        const center = this.map.getCenter();
+        
+        if (Utils && typeof Utils.calculateDistance === 'function') {
+            try {
+                sortedPoints.sort((a, b) => {
+                    const distA = Utils.calculateDistance(
+                        center.lat, center.lng, 
+                        parseFloat(a.latitude), parseFloat(a.longitude)
+                    );
+                    const distB = Utils.calculateDistance(
+                        center.lat, center.lng, 
+                        parseFloat(b.latitude), parseFloat(b.longitude)
+                    );
+                    return distA - distB;
+                });
+            } catch (error) {
+                console.error("Error sorting points by distance:", error);
+            }
+        }
+        
+        // Limit to 10 nearest points
+        const nearestPoints = sortedPoints.slice(0, 10);
+        
+        // Update UI
+        nearestInfo.style.display = 'none';
+        nearestList.style.display = 'block';
+        nearestList.innerHTML = '';
+        
+        // Remove previous numbered markers
+        this.removeNumberedMarkers();
+        
+        // Add numbered markers for the nearest points
+        nearestPoints.forEach((point, index) => {
+            try {
+                const distance = Utils.calculateDistance(
+                    center.lat, center.lng, 
+                    parseFloat(point.latitude), parseFloat(point.longitude)
+                );
+                
+                const pointElement = document.createElement('div');
+                pointElement.className = 'nearest-point-item';
+                pointElement.innerHTML = `
+                    <h4>${index + 1}. ${point.name || point.id}</h4>
+                    <p>${point.address || ''}, ${point.city || ''}</p>
+                    <p class="distance">${distance.toFixed(2)} km</p>
+                `;
+                
+                pointElement.addEventListener('click', () => {
+                    if (UIService && typeof UIService.selectPoint === 'function') {
+                        UIService.selectPoint(point);
+                    }
+                });
+                
+                nearestList.appendChild(pointElement);
+                
+                // Add numbered marker for this point
+                this.addNumberedMarker(point, index + 1);
+            } catch (error) {
+                console.error("Error adding point to nearest list:", error, point);
+            }
+        });
+        
+        console.log(`Displayed ${nearestPoints.length} nearest points`);
+    },
+
+    /**
+     * Add a numbered marker to the map
+     * @param {Object} point - The point to mark
+     * @param {number} number - The number to display on marker
+     */
+    addNumberedMarker: function(point, number) {
+        if (!point.latitude || !point.longitude) return;
+        
+        // Create a custom numbered icon
+        const numberedIcon = L.divIcon({
+            className: 'numbered-marker',
+            html: `<div class="numbered-marker-inner">${number}</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+        
+        // Create marker with the numbered icon
+        const marker = L.marker([point.latitude, point.longitude], {
+            icon: numberedIcon,
+            zIndexOffset: 1000 + number // Make sure numbered markers appear on top
+        }).addTo(this.map);
+        
+        // Store the numbered marker for later removal
+        if (!this.numberedMarkers) this.numberedMarkers = [];
+        this.numberedMarkers.push(marker);
+    },
+
+    /**
+     * Remove all numbered markers from the map
+     */
+    removeNumberedMarkers: function() {
+        if (this.numberedMarkers && this.numberedMarkers.length > 0) {
+            this.numberedMarkers.forEach(marker => {
+                this.map.removeLayer(marker);
+            });
+            this.numberedMarkers = [];
+        }
     }
 };

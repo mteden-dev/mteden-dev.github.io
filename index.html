@@ -19,6 +19,7 @@
  
     <div id="selected-point-container" class="selected-point-container">
         Wybrany punkt: <span id="selected-point-name">Brak</span>
+        <button id="close-selected-point" onclick="UIService.closeSelectedPoint()" style="float: right; border: none; background: transparent; cursor: pointer;">✕</button>
     </div>
     
     <div id="status-bar" class="status-bar">
@@ -79,6 +80,50 @@
             
             <div class="search-results" id="search-results">
                 <!-- Wyniki będą dodane dynamicznie -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="left-panel" id="left-panel">
+        <div class="panel-section search-section">
+            <h3>Wyszukaj</h3>
+            <div class="search-input-container">
+                <input type="text" id="panel-search-input" placeholder="Wyszukaj punkt lub adres...">
+                <button id="panel-search-button">Szukaj</button>
+            </div>
+            <div id="panel-search-autocomplete" class="panel-autocomplete"></div>
+        </div>
+        
+        <div class="panel-section filters-section">
+            <h3>Wybierz przewoźnika</h3>
+            <div class="carrier-logos" id="carrier-logos">
+                <!-- Logos will be added dynamically -->
+                <div class="carrier-logo active" data-carrier="all">
+                    <img src="img/all-carriers.png" alt="Wszyscy przewoźnicy">
+                    <span>Wszyscy</span>
+                </div>
+                <div class="carrier-logo" data-carrier="inpost">
+                    <img src="img/inpost-logo.png" alt="InPost">
+                    <span>InPost</span>
+                </div>
+                <div class="carrier-logo" data-carrier="dhl">
+                    <img src="img/dhl-logo.png" alt="DHL">
+                    <span>DHL</span>
+                </div>
+                <div class="carrier-logo" data-carrier="orlen">
+                    <img src="img/orlen-logo.png" alt="Orlen">
+                    <span>Orlen</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel-section nearest-section">
+            <h3>Najbliżej Ciebie</h3>
+            <div class="nearest-info" id="nearest-info">
+                <p>Przybliż mapę, aby zobaczyć punkty w okolicy.</p>
+            </div>
+            <div class="nearest-points-list" id="nearest-points-list">
+                <!-- Points will be added dynamically -->
             </div>
         </div>
     </div>

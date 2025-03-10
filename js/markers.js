@@ -236,5 +236,56 @@ const MarkersService = {
      */
     deg2rad: function(deg) {
         return deg * (Math.PI/180);
+    },
+
+    /**
+     * Filter markers by carrier
+     * @param {string} carrierId - Carrier identifier (e.g., 'inpost', 'dhl')
+     */
+    filterByCarrier: function(carrierId) {
+        if (carrierId === 'all') {
+            // Show all markers
+            this.addMarkers('all');
+            return;
+        }
+        
+        // Filter points by carrier
+        const filteredPoints = this.allPoints.filter(point => {
+            if (!point.type) return false;
+            
+            const lowerType = point.type.toLowerCase();
+            
+            switch(carrierId) {
+                case 'inpost':
+                    return lowerType.includes('inpost') || lowerType.includes('paczkomat');
+                case 'dhl':
+                    return lowerType.includes('dhl');
+                case 'orlen':
+                    return lowerType.includes('orlen');
+                default:
+                    return true;
+            }
+        });
+        
+        // Add filtered markers to map
+        if (this.markerClusterGroup) {
+            MapService.map.removeLayer(this.markerClusterGroup);
+        }
+        
+        this.markerClusterGroup = L.markerClusterGroup(Config.map.clusterOptions);
+        
+        filteredPoints.forEach(point => {
+            this.addSingleMarker(point);
+        });
+        
+        MapService.map.addLayer(this.markerClusterGroup);
+        
+        // Update UI
+        Utils.updateStatus(`Wyświetlono ${filteredPoints.length} punktów przewoźnika`, false);
+        
+        // Update nearest points list
+        if (MapService && typeof MapService.updateNearestPointsList === 'function') {
+            MapService.updateNearestPointsList();
+        }
     }
 };
