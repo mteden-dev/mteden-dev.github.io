@@ -21,11 +21,10 @@ body {
     padding: 15px;
     background-color: #f8f9fa;
     border-bottom: 1px solid #ddd;
-    display: flex;
+    display: none;
     align-items: center;
     gap: 15px;
     flex-wrap: wrap;
-    display: none;
 }
 
 .legend {
