@@ -24,9 +24,9 @@ const ApiService = {
             let pointsToFetch = [];
             
             if (countryCode === 'all') {
-                // Pobierz dane ze wszystkich dostępnych krajów
-                const fetchPromises = Object.values(Config.api.urls).map(url => 
-                    this.fetchPointsFromUrl(url)
+                // Pobierz dane ze wszystkich dostępnych przewoźników
+                const fetchPromises = Object.keys(Config.carriers).map(carrierId => 
+                    this.fetchPointsFromUrl(Config.carriers[carrierId].apiUrl)
                 );
                 
                 const results = await Promise.allSettled(fetchPromises);
@@ -42,8 +42,13 @@ const ApiService = {
                     console.warn(`${failedRequests.length} żądań nie powiodło się`);
                 }
             } else {
-                // Pobierz dane tylko dla wybranego kraju
-                const apiUrl = Config.api.urls[countryCode] || Config.api.urls.pl;
+                // Pobierz dane dla przewoźnika inpost w wybranym kraju
+                let apiUrl;
+                if (Config.carriers.inpost.countryUrls && Config.carriers.inpost.countryUrls[countryCode]) {
+                    apiUrl = Config.carriers.inpost.countryUrls[countryCode];
+                } else {
+                    apiUrl = Config.carriers.inpost.apiUrl;
+                }
                 pointsToFetch = await this.fetchPointsFromUrl(apiUrl);
             }
             
@@ -136,7 +141,7 @@ const ApiService = {
      * @param {string} carrier - Identyfikator przewoźnika (np. inpost)
      * @returns {Promise<Array>} - Promise z tablicą punktów
      */
-    fetchPointsForCarrier: async function(countryCode, carrier) {
+    fetchPointsForCarrier: async function(carrier, countryCode = 'pl') {
         Utils.updateStatus(`Pobieranie punktów przewoźnika ${carrier}...`, true);
         
         try {
@@ -144,10 +149,22 @@ const ApiService = {
             
             if (countryCode === 'all') {
                 // Sprawdź, czy przewoźnik ma konfigurację dla wszystkich krajów
-                if (Config.api.carriers[carrier]) {
-                    const fetchPromises = Object.values(Config.api.carriers[carrier]).map(url => 
-                        this.fetchPointsFromUrl(url)
-                    );
+                if (Config.carriers[carrier]) {
+                    const urls = [];
+                    
+                    // Get all country URLs if available
+                    if (Config.carriers[carrier].countryUrls) {
+                        Object.values(Config.carriers[carrier].countryUrls).forEach(url => {
+                            urls.push(url);
+                        });
+                    }
+                    
+                    // Add the default URL if no country URLs or as a fallback
+                    if (urls.length === 0 && Config.carriers[carrier].apiUrl) {
+                        urls.push(Config.carriers[carrier].apiUrl);
+                    }
+                    
+                    const fetchPromises = urls.map(url => this.fetchPointsFromUrl(url));
                     
                     const results = await Promise.allSettled(fetchPromises);
                     pointsToFetch = results
@@ -158,9 +175,13 @@ const ApiService = {
                 }
             } else {
                 // Pobierz dane dla konkretnego kraju i przewoźnika
-                if (Config.api.carriers[carrier] && Config.api.carriers[carrier][countryCode]) {
-                    const apiUrl = Config.api.carriers[carrier][countryCode];
+                if (Config.carriers[carrier] && Config.carriers[carrier].countryUrls && 
+                    Config.carriers[carrier].countryUrls[countryCode]) {
+                    const apiUrl = Config.carriers[carrier].countryUrls[countryCode];
                     pointsToFetch = await this.fetchPointsFromUrl(apiUrl);
+                } else if (Config.carriers[carrier] && Config.carriers[carrier].apiUrl) {
+                    // Fall back to default apiUrl if country-specific one isn't available
+                    pointsToFetch = await this.fetchPointsFromUrl(Config.carriers[carrier].apiUrl);
                 } else {
                     throw new Error(`Brak konfiguracji dla przewoźnika ${carrier} w kraju ${countryCode}`);
                 }

@@ -7,25 +7,9 @@ console.log('Defining Config');
 const Config = {
     // Konfiguracja API
     api: {
-        urls: {
-            pl: 'https://api.globkurier.pl/v1/points?productId=420',
-            fr: 'https://api.globkurier.pl/v1/points?productId=3492&countryId=12',
-            other: 'https://api.globkurier.pl/v1/points?productId=3508&countryId=33',
-            dpd: 'https://api.globkurier.pl/v1/points?productId=3341'
-        },
-        // If the API requires headers, add them here
+        // Keep only the headers which are shared across all requests
         headers: {
             'Content-Type': 'application/json'
-        },
-        // Konfiguracja API dla konkretnych przewoźników
-        carriers: {
-            inpost: {
-                pl: 'https://api.globkurier.pl/v1/points?productId=420',
-                fr: 'https://api.globkurier.pl/v1/points?productId=3492&countryId=12'
-            },
-            dpd: {
-                pl: 'https://api.globkurier.pl/v1/points?productId=3341'
-            }
         }
     },
     
@@ -110,5 +94,75 @@ const Config = {
     mode: {
         default: 'standalone',
         modalSelectButtonText: 'Wybierz ten punkt'
+    }
+};
+
+// Carrier configuration
+Config.carriers = {
+    inpost: {
+        id: 'inpost',
+        name: 'InPost',
+        apiUrl: 'https://api.globkurier.pl/v1/points?productId=420',
+        color: '#FFCC00',
+        logo: 'img/inpost-logo.png',
+        identifiers: ['inpost', 'paczkomat'],
+        pointIdentifier: function(point) {
+            return (point.type && (point.type.toLowerCase().includes('inpost') || 
+                   point.type.toLowerCase().includes('paczkomat')));
+        },
+        // Add country-specific URLs if needed
+        countryUrls: {
+            pl: 'https://api.globkurier.pl/v1/points?productId=420',
+            fr: 'https://api.globkurier.pl/v1/points?productId=3492&countryId=12'
+        }
+    },
+    dpd: {
+        id: 'dpd',
+        name: 'DPD',
+        apiUrl: 'https://api.globkurier.pl/v1/points?productId=3341',
+        color: '#DC0032', 
+        logo: 'img/dpd-logo.png',
+        identifiers: ['dpd'],
+        pointIdentifier: function(point) {
+            return (point.name && point.name.toLowerCase().includes('dpd'));
+        },
+        countryUrls: {
+            pl: 'https://api.globkurier.pl/v1/points?productId=3341'
+        }
+    },
+    orlen: {
+        id: 'orlen',
+        name: 'Orlen',
+        apiUrl: 'https://api.globkurier.pl/v1/points?productId=1987',
+        color: '#920015',
+        logo: 'img/orlen-logo.png',
+        identifiers: ['orlen', 'ruch'],
+        pointIdentifier: function(point) {
+            return (point.name && (point.name.toLowerCase().includes('orlen') || 
+                   point.name.toLowerCase().includes('ruch')));
+        }
+    },
+    dhl: {
+        id: 'dhl',
+        name: 'DHL',
+        apiUrl: 'https://api.globkurier.pl/v1/points?productId=259',
+        color: '#FFCC00',
+        logo: 'img/dhl-logo.png',
+        identifiers: ['dhl'],
+        pointIdentifier: function(point) {
+            return (point.name && point.name.toLowerCase().includes('dhl'));
+        }
+    },
+    pocztex: {
+        id: 'pocztex',
+        name: 'Pocztex',
+        apiUrl: 'https://api.globkurier.pl/v1/points?productId=2300',
+        color: '#e61614',
+        logo: 'img/pocztex-logo.png',
+        identifiers: ['pocztex', 'poczta'],
+        pointIdentifier: function(point) {
+            return (point.name && (point.name.toLowerCase().includes('pocztex') || 
+                   point.name.toLowerCase().includes('poczta polska')));
+        }
     }
 };

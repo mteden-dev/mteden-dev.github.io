@@ -19,19 +19,26 @@ const MarkersService = {
      * @param {Array} points - Tablica punktów
      */
     setPoints: function(points) {
-        // Check if there are DPD points to preserve
-        const existingDPDPoints = this.allPoints.filter(point => 
-            point && point.name && point.name.toLowerCase().includes('dpd')
-        );
-        
-        if (existingDPDPoints.length > 0) {
-            // If we have DPD points, use the method that preserves them
-            this.setPointsPreservingDPD(points, existingDPDPoints);
-        } else {
-            // Otherwise, just replace all points
-            this.allPoints = points;
-            this.markersById = {};
+        if (!points || !Array.isArray(points)) {
+            console.error("Invalid points array provided");
+            return;
         }
+        
+        // Log the types of points being set
+        const inpostPoints = points.filter(p => 
+            p && ((p.type && p.type.toLowerCase().includes('inpost')) || 
+                  (p.type && p.type.toLowerCase().includes('paczkomat')))
+        ).length;
+        
+        const dpdPoints = points.filter(p => 
+            p && p.name && p.name.toLowerCase().includes('dpd')
+        ).length;
+        
+        console.log(`Setting points: Total: ${points.length}, InPost: ${inpostPoints}, DPD: ${dpdPoints}`);
+        
+        // Always make a copy to avoid reference issues
+        this.allPoints = [...points];
+        this.markersById = {};
     },
     
     /**
@@ -160,33 +167,72 @@ const MarkersService = {
     },
     
     /**
-     * Create a marker without adding it to cluster
+     * Create marker for a point
+     * @param {Object} point - The point data
+     * @returns {Object} - Leaflet marker
      */
     createMarker: function(point) {
-        // Create marker
-        const marker = L.marker([point.latitude, point.longitude], {
-            icon: this.getSimplifiedMarkerIcon(point),
-            point: point
+        if (!point || !point.latitude || !point.longitude) {
+            console.error('Cannot create marker: invalid point data', point);
+            return null;
+        }
+
+        // Get marker color from Config based on carrier identification
+        let markerColor = '#f39c12'; // Default orange as fallback
+        
+        // Identify carrier using the same logic as in createCustomClusterIcon
+        for (const carrierId in Config.carriers) {
+            const carrier = Config.carriers[carrierId];
+            
+            // If carrier has a pointIdentifier function, use that
+            if (carrier.pointIdentifier && carrier.pointIdentifier(point)) {
+                markerColor = carrier.color || markerColor;
+                break;
+            }
+            
+            // Check explicit carrier property
+            if (point.carrier === carrierId) {
+                markerColor = carrier.color || markerColor;
+                break;
+            }
+            
+            // Fallback for basic name/type checks
+            if ((point.name && point.name.toLowerCase().includes(carrierId)) || 
+                (point.type && point.type.toLowerCase().includes(carrierId))) {
+                markerColor = carrier.color || markerColor;
+                break;
+            }
+        }
+        
+        // Create marker with appropriate icon
+        const markerIcon = L.divIcon({
+            className: 'simple-marker',
+            html: `<div style="background-color: ${markerColor};"></div>`,
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
         });
         
-        // Use event delegation pattern - only create popup when clicked
-        marker.on('click', () => {
-            if (!marker.getPopup()) {
-                const popupContent = this.createPopupContent(point);
-                marker.bindPopup(popupContent);
-            }
-            
-            marker.openPopup();
-            
-            // Select point in UI
-            if (UIService && typeof UIService.selectPoint === 'function') {
-                UIService.selectPoint(point);
-            }
+        const marker = L.marker([point.latitude, point.longitude], {
+            icon: markerIcon,
+            title: point.name || point.id,
+            point: point // Store point data directly on marker for clustering
         });
+        
+        // Create popup content
+        let popupContent = this.createPopupContent(point);
+        marker.bindPopup(popupContent);
+        
+        // Store reference to marker by ID
+        if (point.id) {
+            this.markersById[point.id] = {
+                marker: marker,
+                point: point
+            };
+        }
         
         return marker;
     },
-    
+
     /**
      * Original addSingleMarker (now uses createMarker and adds directly to cluster)
      */
@@ -266,21 +312,30 @@ const MarkersService = {
      * @returns {string} - Kolor w formacie hex
      */
     getMarkerColor: function(point) {
-        if (!point.type) return '#f39c12'; // domyślny kolor
+        if (!point) return '#f39c12'; // Default color
         
-        const lowerType = point.type.toLowerCase();
-        
-        if (lowerType.includes('inpost') || lowerType.includes('paczkomat')) {
-            return '#e74c3c'; // czerwony
-        } else if (lowerType.includes('dhl')) {
-            return '#3498db'; // niebieski
-        } else if (lowerType.includes('orlen')) {
-            return '#2ecc71'; // zielony
-        } else if (point.name && point.name.toLowerCase().includes('dpd')) {
-            return '#BB0033'; // kolor DPD
+        // Check each carrier configuration
+        for (const carrierId in Config.carriers) {
+            const carrier = Config.carriers[carrierId];
+            
+            // Use pointIdentifier if available
+            if (carrier.pointIdentifier && carrier.pointIdentifier(point)) {
+                return carrier.color || '#f39c12';
+            }
+            
+            // Check explicit carrier property
+            if (point.carrier === carrierId) {
+                return carrier.color || '#f39c12';
+            }
+            
+            // Basic name/type check
+            if ((point.name && point.name.toLowerCase().includes(carrierId)) || 
+                (point.type && point.type.toLowerCase().includes(carrierId))) {
+                return carrier.color || '#f39c12';
+            }
         }
         
-        return '#f39c12'; // domyślny pomarańczowy
+        return '#f39c12'; // Default color
     },
     
     /**
@@ -349,49 +404,34 @@ const MarkersService = {
     },
 
     /**
-     * Filter markers by carrier
-     * @param {string} carrierId - Carrier identifier (e.g., 'inpost', 'dhl')
+     * Filter points by carrier
+     * @param {string} carrierId - Carrier ID to filter by, or 'all' for all carriers
      */
     filterByCarrier: function(carrierId) {
         console.log(`Filtering by carrier: ${carrierId}`);
         
-        // For "all" carrier, make sure we include DPD points
+        let filteredPoints;
+        
         if (carrierId === 'all') {
-            // Debug: Check if we have DPD points
-            const dpdPoints = this.allPoints.filter(point => 
-                point && point.name && point.name.toLowerCase().includes('dpd')
-            );
-            console.log(`Total points: ${this.allPoints.length}, DPD points: ${dpdPoints.length}`);
+            // Show all points
+            filteredPoints = [...this.allPoints];
+        } else if (Config.carriers && Config.carriers[carrierId]) {
+            const carrier = Config.carriers[carrierId];
             
-            // Show all markers
-            this.addMarkers(this.allPoints);
+            // Filter by carrier using the carrier-specific pointIdentifier
+            filteredPoints = this.allPoints.filter(point => {
+                // First check explicit carrier property
+                if (point.carrier === carrierId) return true;
+                
+                // Then use the carrier's custom identifier function
+                return carrier.pointIdentifier && carrier.pointIdentifier(point);
+            });
+        } else {
+            console.error(`Unknown carrier: ${carrierId}`);
             return;
         }
         
-        // For other carriers, filter as usual
-        const filteredPoints = this.allPoints.filter(point => {
-            if (!point) return false;
-            
-            const lowerType = point.type ? point.type.toLowerCase() : '';
-            const lowerName = point.name ? point.name.toLowerCase() : '';
-            
-            switch(carrierId) {
-                case 'inpost':
-                    return lowerType.includes('inpost') || lowerType.includes('paczkomat');
-                case 'dhl':
-                    return lowerType.includes('dhl');
-                case 'orlen':
-                    return lowerType.includes('orlen');
-                case 'dpd':
-                    return lowerType.includes('dpd') || lowerName.includes('dpd');
-                default:
-                    return true;
-            }
-        });
-
-        console.log(`Found ${filteredPoints.length} points for carrier: ${carrierId}`);
-        
-        // Use addMarkers function with the filtered points array
+        console.log(`Filtered to ${filteredPoints.length} points for carrier: ${carrierId}`);
         this.addMarkers(filteredPoints);
     },
 
@@ -447,119 +487,147 @@ const MarkersService = {
     },
 
     /**
-     * Create a simpler marker icon with the specified color
+     * Create a better-looking marker icon with the specified color
      */
     createMarkerIcon: function(color) {
-        // Use a simpler div icon with fewer DOM elements
         return L.divIcon({
-            className: 'simple-marker',
-            html: `<div style="background:${color};"></div>`,
-            iconSize: [16, 16], // Smaller icon size (was 24x24)
-            iconAnchor: [8, 8]  // Adjusted anchor
+            className: 'custom-marker-icon',
+            html: `
+                <div class="marker-pin" style="background-color: ${color};">
+                    <div class="marker-pin-inner"></div>
+                </div>
+            `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 24],
+            popupAnchor: [0, -24]
         });
     },
 
     /**
-     * Create custom cluster icon based on the carriers contained within
-     * @param {L.MarkerCluster} cluster - The marker cluster
-     * @returns {L.DivIcon} - Custom icon for the cluster
+     * Create custom cluster icon with pie chart
+     * @param {Object} cluster - Leaflet cluster
+     * @returns {Object} - Custom divIcon
      */
     createCustomClusterIcon: function(cluster) {
-        // Get all child markers
+        // Get all markers in the cluster
         const markers = cluster.getAllChildMarkers();
         const count = markers.length;
         
-        // Count markers by carrier
-        const carrierCounts = {
-            inpost: 0,
-            dhl: 0,
-            orlen: 0,
-            dpd: 0,
-            other: 0
-        };
+        // Dynamic carrier counting - detect all carriers in the cluster
+        const carrierCounts = {};
+        let unidentifiedCount = 0;
         
-        // Count points by carrier
+        // Count markers by carrier
         markers.forEach(marker => {
-            const point = marker.options.point || {};
-            
-            if (!point.type && !point.name) {
-                carrierCounts.other++;
+            const point = marker.options.point;
+            if (!point) {
+                unidentifiedCount++;
                 return;
             }
             
-            const lowerType = point.type ? point.type.toLowerCase() : '';
-            const lowerName = point.name ? point.name.toLowerCase() : '';
+            // Try to identify carrier
+            let identified = false;
             
-            if (lowerType.includes('inpost') || lowerType.includes('paczkomat')) {
-                carrierCounts.inpost++;
-            } else if (lowerType.includes('dhl')) {
-                carrierCounts.dhl++;
-            } else if (lowerType.includes('orlen')) {
-                carrierCounts.orlen++;
-            } else if (lowerType.includes('dpd') || lowerName.includes('dpd')) {
-                carrierCounts.dpd++;
-            } else {
-                carrierCounts.other++;
+            // Check all configured carriers
+            for (const carrierId in Config.carriers) {
+                const carrier = Config.carriers[carrierId];
+                
+                // If carrier has a pointIdentifier function, use that
+                if (carrier.pointIdentifier && carrier.pointIdentifier(point)) {
+                    carrierCounts[carrierId] = (carrierCounts[carrierId] || 0) + 1;
+                    identified = true;
+                    break;
+                }
+                
+                // Fallback check for explicit carrier property
+                if (point.carrier === carrierId) {
+                    carrierCounts[carrierId] = (carrierCounts[carrierId] || 0) + 1;
+                    identified = true;
+                    break;
+                }
+                
+                // Fallback for basic name/type checks
+                if ((point.name && point.name.toLowerCase().includes(carrierId)) || 
+                    (point.type && point.type.toLowerCase().includes(carrierId))) {
+                    carrierCounts[carrierId] = (carrierCounts[carrierId] || 0) + 1;
+                    identified = true;
+                    break;
+                }
+            }
+            
+            if (!identified) {
+                unidentifiedCount++;
             }
         });
-        
-        // Get carrier colors and percentages
-        const colors = {
-            inpost: '#e74c3c', // red
-            dhl: '#3498db',    // blue
-            orlen: '#2ecc71',  // green
-            dpd: '#BB0033',    // DPD color
-            other: '#f39c12'   // orange
-        };
         
         // Create SVG pie chart
         let svgContent = '<svg width="100%" height="100%" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">';
         
-        // If only one carrier type, just use a solid circle
-        const carrierTypes = Object.keys(carrierCounts).filter(c => carrierCounts[c] > 0);
-        if (carrierTypes.length === 1) {
-            const carrierType = carrierTypes[0];
-            svgContent += `<circle cx="20" cy="20" r="16" fill="${colors[carrierType]}" />`;
+        // Check if we have only one carrier type (for simplicity)
+        const carrierIds = Object.keys(carrierCounts);
+        if (carrierIds.length === 1 && carrierCounts[carrierIds[0]] === count) {
+            // Single carrier type, show full circle
+            const carrierId = carrierIds[0];
+            const color = Config.carriers[carrierId]?.color || '#3388ff';
+            svgContent += `<circle cx="20" cy="20" r="20" fill="${color}" />`;
         } else {
-            // Create pie chart segments for multiple carriers
+            // Mixed carriers, create pie chart
             let startAngle = 0;
             
-            for (const carrier in carrierCounts) {
-                if (carrierCounts[carrier] > 0) {
-                    const percentage = carrierCounts[carrier] / count;
-                    const angle = percentage * 360;
-                    const endAngle = startAngle + angle;
-                    
-                    // Convert angles to radians
-                    const startRad = (startAngle - 90) * Math.PI / 180;
-                    const endRad = (endAngle - 90) * Math.PI / 180;
-                    
-                    // Calculate arc path
-                    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-                    
-                    const x1 = 20 + 16 * Math.cos(startRad);
-                    const y1 = 20 + 16 * Math.sin(startRad);
-                    const x2 = 20 + 16 * Math.cos(endRad);
-                    const y2 = 20 + 16 * Math.sin(endRad);
-                    
-                    svgContent += `<path d="M 20 20 L ${x1} ${y1} A 16 16 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${colors[carrier]}" />`;
-                    
-                    startAngle = endAngle;
+            // Add slice for each carrier
+            for (const carrierId in carrierCounts) {
+                const carrierCount = carrierCounts[carrierId];
+                const percentage = carrierCount / count;
+                const endAngle = startAngle + (percentage * Math.PI * 2);
+                
+                const x1 = 20 + 20 * Math.sin(startAngle);
+                const y1 = 20 - 20 * Math.cos(startAngle);
+                const x2 = 20 + 20 * Math.sin(endAngle);
+                const y2 = 20 - 20 * Math.cos(endAngle);
+                
+                const largeArc = percentage > 0.5 ? 1 : 0;
+                const color = Config.carriers[carrierId]?.color || '#3388ff';
+                
+                if (startAngle === 0) {
+                    // First slice starts at top (0 degrees)
+                    svgContent += `<path d="M 20 0 A 20 20 0 ${largeArc} 1 ${x2} ${y2} L 20 20 Z" fill="${color}" />`;
+                } else {
+                    // Other slices start from end of previous slice
+                    svgContent += `<path d="M 20 20 L ${x1} ${y1} A 20 20 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${color}" />`;
                 }
+                
+                startAngle = endAngle;
+            }
+            
+            // Add slice for unidentified points if any
+            if (unidentifiedCount > 0) {
+                const percentage = unidentifiedCount / count;
+                const endAngle = startAngle + (percentage * Math.PI * 2);
+                
+                const x1 = 20 + 20 * Math.sin(startAngle);
+                const y1 = 20 - 20 * Math.cos(startAngle);
+                
+                const largeArc = percentage > 0.5 ? 1 : 0;
+                const color = '#3388ff'; // Default color for unknown carriers
+                
+                svgContent += `<path d="M 20 20 L ${x1} ${y1} A 20 20 0 ${largeArc} 1 20 0 Z" fill="${color}" />`;
             }
         }
         
-        // Add count text
+        // Add the count text
         svgContent += `
-            <circle cx="20" cy="20" r="12" fill="white" fill-opacity="0.7" />
-            <text x="20" y="24" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold">${count}</text>
-        </svg>`;
+            <circle cx="20" cy="20" r="14" fill="white" />
+            <text x="20" y="24" font-size="14" text-anchor="middle" fill="black" font-family="Arial">${count}</text>
+        `;
         
+        svgContent += '</svg>';
+        
+        // Return a divIcon with the SVG
         return L.divIcon({
             html: svgContent,
             className: 'custom-cluster-icon',
             iconSize: L.point(40, 40),
-            iconAnchor: L.point(20, 20)
+            iconAnchor: [20, 20]
         });
     },
 
@@ -602,5 +670,120 @@ const MarkersService = {
         if (window.gc) {
             window.gc();
         }
+    },
+
+    /**
+     * Get carrier color based on point properties (fallback method)
+     * @param {Object} point - The point
+     * @returns {string} - Color code
+     */
+    getCarrierColor: function(point) {
+        if (!point) return '#3388ff'; // Default blue
+        
+        if (point.name && point.name.toLowerCase().includes('dpd')) {
+            return '#DC0032'; // DPD color
+        }
+        
+        if (!point.type) return '#f39c12'; // Default orange
+        
+        const lowerType = point.type.toLowerCase();
+        if (lowerType.includes('inpost') || lowerType.includes('paczkomat')) {
+            return '#FFCC00'; // InPost yellow
+        } else if (lowerType.includes('dhl')) {
+            return '#FFCC00'; // DHL yellow
+        } else if (lowerType.includes('orlen')) {
+            return '#FF0000'; // Orlen red
+        }
+        
+        return '#f39c12'; // Default orange
+    },
+
+    /**
+     * Filter markers by carrier
+     * @param {string} carrierId - Carrier ID to filter by, or 'all' for all carriers
+     */
+    filterByCarrier: function(carrierId) {
+        console.log(`Filtering by carrier: ${carrierId}`);
+        
+        // First, ensure we have a valid map instance
+        if (!MapService.map) {
+            console.error('Map is not initialized, cannot filter markers');
+            return;
+        }
+        
+        // Ensure markerClusterGroup is initialized and attached to the map
+        if (!this.markerClusterGroup) {
+            this.markerClusterGroup = L.markerClusterGroup(Config.map.clusterOptions);
+            this.markerClusterGroup.addTo(MapService.map);
+        }
+        
+        // Save the filtered points to display
+        let filteredPoints = [];
+        
+        // Remove all existing markers from the cluster group
+        this.markerClusterGroup.clearLayers();
+        
+        // Check if we want to show all markers
+        if (!carrierId || carrierId === 'all') {
+            filteredPoints = [...this.allPoints];
+        } else {
+            // Filter points for the specified carrier
+            filteredPoints = this.allPoints.filter(point => {
+                if (!point) return false;
+                
+                // Check if carrier has a custom pointIdentifier function
+                if (Config.carriers[carrierId]?.pointIdentifier) {
+                    return Config.carriers[carrierId].pointIdentifier(point);
+                }
+                
+                // Fallback to basic identification
+                return (point.carrier === carrierId) ||
+                       (point.name && point.name.toLowerCase().includes(carrierId)) ||
+                       (point.type && point.type.toLowerCase().includes(carrierId));
+            });
+        }
+        
+        console.log(`Found ${filteredPoints.length} points matching carrier: ${carrierId || 'all'}`);
+        
+        // Create and add markers in batches for better performance
+        const batchSize = 500;
+        const totalBatches = Math.ceil(filteredPoints.length / batchSize);
+        
+        const addBatch = (batchIndex) => {
+            if (batchIndex >= totalBatches) {
+                console.log('All batches added');
+                return;
+            }
+            
+            // Safety check - make sure we still have a valid map
+            if (!MapService.map) {
+                console.error('Map became null during batch processing');
+                return;
+            }
+            
+            const start = batchIndex * batchSize;
+            const end = Math.min(start + batchSize, filteredPoints.length);
+            const batch = filteredPoints.slice(start, end);
+            
+            // Create markers for this batch
+            const markers = batch.map(point => this.createMarker(point)).filter(marker => marker);
+            
+            // Add markers to cluster group with error handling
+            try {
+                if (this.markerClusterGroup && markers.length > 0) {
+                    this.markerClusterGroup.addLayers(markers);
+                }
+            } catch (error) {
+                console.error('Error adding markers to cluster group:', error);
+            }
+            
+            // Process next batch
+            setTimeout(() => addBatch(batchIndex + 1), 10);
+        };
+        
+        // Start adding batches
+        addBatch(0);
+        
+        return filteredPoints.length;
     }
 };

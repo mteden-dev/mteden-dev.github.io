@@ -458,10 +458,10 @@ class App {
      * Load DPD points from API
      */
     loadDPDPoints() {
-        console.log('Loading DPD points from:', Config.api.urls.dpd);
+        console.log('Loading DPD points from:', Config.carriers.dpd.apiUrl);
         Utils.updateStatus('Ładowanie punktów DPD...', true);
         
-        return fetch(Config.api.urls.dpd)
+        return fetch(Config.carriers.dpd.apiUrl)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`API responded with status: ${response.status}`);
@@ -476,18 +476,44 @@ class App {
                     return {...point, type: 'DPD'};
                 });
                 
-                // Add to existing points but avoid duplicates
-                const existingIds = new Set(MarkersService.allPoints.map(p => p.id));
+                // IMPORTANT: Get a count of current InPost points for verification
+                const currentInpostPoints = MarkersService.allPoints.filter(p => 
+                    p && ((p.type && p.type.toLowerCase().includes('inpost')) || 
+                         (p.type && p.type.toLowerCase().includes('paczkomat')))
+                ).length;
+                
+                console.log(`Current points before adding DPD: ${MarkersService.allPoints.length} (InPost: ${currentInpostPoints})`);
+                
+                // Preserve all existing points (especially InPost) by creating a new combined array
+                const combinedPoints = [...MarkersService.allPoints];
+                
+                // Add only new DPD points that don't already exist
+                const existingIds = new Set(combinedPoints.map(p => p.id));
                 const newPoints = processedPoints.filter(p => !existingIds.has(p.id));
                 
-                MarkersService.allPoints = [...MarkersService.allPoints, ...newPoints];
+                // Add the new DPD points to the combined array
+                combinedPoints.push(...newPoints);
+                
+                // Update the marker service with the combined points
+                MarkersService.setPoints(combinedPoints);
+                
                 console.log(`Added ${newPoints.length} new DPD points to total collection`);
                 
-                // Re-render all points if in "all" view
+                // Re-apply current carrier filter
                 const activeLogo = document.querySelector('.carrier-logo.active');
-                if (activeLogo && activeLogo.getAttribute('data-carrier') === 'all') {
-                    MarkersService.filterByCarrier('all');
-                }
+                const currentCarrier = activeLogo ? activeLogo.getAttribute('data-carrier') : 'all';
+                console.log(`Re-applying current carrier filter: ${currentCarrier}`);
+                
+                // Always show all points initially after adding DPD
+                MarkersService.filterByCarrier('all');
+                
+                // Verify the counts after loading
+                const afterInpostPoints = MarkersService.allPoints.filter(p => 
+                    p && ((p.type && p.type.toLowerCase().includes('inpost')) || 
+                         (p.type && p.type.toLowerCase().includes('paczkomat')))
+                ).length;
+                
+                console.log(`After adding DPD - Total: ${MarkersService.allPoints.length}, InPost: ${afterInpostPoints}, DPD: ${newPoints.length}`);
                 
                 Utils.updateStatus(`Załadowano ${newPoints.length} punktów DPD`, false);
                 return newPoints;
@@ -497,6 +523,53 @@ class App {
                 Utils.updateStatus('Błąd ładowania punktów DPD', false);
                 return [];
             });
+    }
+
+    /**
+     * Load points for a country
+     * @param {string} countryCode - Country code
+     * @param {string} city - Optional city filter
+     */
+    async loadPointsForCountry(countryCode, city) {
+        console.log(`Loading points for country: ${countryCode} ${city || ''}`);
+        
+        // Update status
+        Utils.updateStatus('Pobieranie danych...', true);
+        
+        try {
+            // First, load all types of points at once to ensure they're displayed properly
+            const [inpostPoints, dpdPoints] = await Promise.all([
+                // Load InPost points
+                ApiService.fetchPointsFromUrl(Config.carriers.inpost.apiUrl),
+                // Load DPD points
+                ApiService.fetchPointsFromUrl(Config.carriers.dpd.apiUrl)
+            ]);
+            
+            console.log(`Received ${inpostPoints.length} InPost points and ${dpdPoints.length} DPD points`);
+            
+            // Combine all points
+            const allPoints = [...inpostPoints, ...dpdPoints];
+            
+            // Set the combined points at once in MarkersService
+            MarkersService.setPoints(allPoints);
+            
+            // Add markers for all points immediately
+            MarkersService.addMarkers('all');
+            
+            // Update city filter
+            this.updateCityFilterOptions();
+            
+            // Update status with total count
+            Utils.updateStatus(`Załadowano ${allPoints.length} punktów`, false);
+            
+            // Build search index with all points
+            if (SearchService && typeof SearchService.buildSearchIndex === 'function') {
+                SearchService.buildSearchIndex(allPoints);
+            }
+        } catch (error) {
+            console.error('Error loading points:', error);
+            Utils.updateStatus('Błąd pobierania danych', false);
+        }
     }
 }
 

@@ -21,6 +21,9 @@ const UIService = {
         
         // Initialize the new panel
         this.initializePanel();
+        
+        // Create carrier filters dynamically
+        this.createCarrierFilters();
     },
     
     /**
@@ -125,88 +128,24 @@ const UIService = {
     },
     
     /**
-     * Obsługa wyboru punktu
-     * @param {Object} point - Wybrany punkt
+     * Handle point selection 
+     * @param {Object} point - The selected point
      */
     selectPoint: function(point) {
-        console.log("Point selected:", point.id);
+        if (!point) return;
         
-        // Ensure we have a point with valid coordinates
-        if (!point || !point.latitude || !point.longitude) {
-            console.error("Invalid point or missing coordinates:", point);
-            return;
-        }
+        console.log("Point selected:", point.id, point.name);
         
-        const selectedPointContainer = document.getElementById('selected-point-container');
-        const selectedPointName = document.getElementById('selected-point-name');
+        // Skip showing the selection panel as it's been removed
+        // The point will still be selected for other operations but won't show in a panel
         
-        // Update selected point info
-        if (selectedPointName) {
-            selectedPointName.textContent = point.name || point.id;
-        }
-        
-        if (selectedPointContainer) {
-            selectedPointContainer.style.display = 'block';
-        }
-        
-        // Save last selected point
-        this.saveLastSelectedPoint(point);
-        
-        // Center map on the selected point
-        if (MapService && MapService.map) {
-            // Always ensure we zoom to at least level 17, which is when clustering is disabled
-            const currentZoom = MapService.map.getZoom();
-            const targetZoom = Math.max(17, currentZoom); // Force level 17 minimum
-            
-            // Set view with animation
-            MapService.setView([point.latitude, point.longitude], targetZoom);
-            
-            // Ensure the marker popup is opened
-            if (MarkersService && MarkersService.markersById && MarkersService.markersById[point.id]) {
-                console.log("Opening popup for marker:", point.id);
-                MarkersService.markersById[point.id].marker.openPopup();
+        // If you need any other functionality when a point is selected, keep it below:
+        // For example, highlighting the point on the map
+        if (MarkersService && MarkersService.markersById && MarkersService.markersById[point.id]) {
+            const marker = MarkersService.markersById[point.id].marker;
+            if (marker) {
+                marker.openPopup();
             }
-            
-            // Update nearest points list after zooming
-            setTimeout(() => {
-                if (MapService && typeof MapService.updateNearestPointsList === 'function') {
-                    MapService.updateNearestPointsList();
-                    
-                    // Highlight the point in the nearest list
-                    setTimeout(() => {
-                        const nearestList = document.getElementById('nearest-points-list');
-                        if (nearestList && nearestList.style.display !== 'none') {
-                            // Find the selected point in the list
-                            const pointItems = nearestList.querySelectorAll('.nearest-point-item');
-                            let found = false;
-                            
-                            for (let i = 0; i < pointItems.length; i++) {
-                                if (pointItems[i].textContent.includes(point.name || point.id)) {
-                                    found = true;
-                                    pointItems[i].classList.add('highlighted');
-                                    pointItems[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    
-                                    setTimeout(() => {
-                                        pointItems[i].classList.remove('highlighted');
-                                    }, 3000);
-                                    break;
-                                }
-                            }
-                            
-                            // If not found, might need to zoom in more
-                            if (!found && MapService.map.getZoom() < 18) {
-                                MapService.setView([point.latitude, point.longitude], 18);
-                            }
-                        }
-                    }, 300);
-                }
-            }, 300);
-        }
-        
-        // On mobile, make sure the left panel is visible
-        const leftPanel = document.getElementById('left-panel');
-        if (leftPanel && window.innerWidth <= 768) {
-            leftPanel.classList.add('open');
         }
     },
     
@@ -470,5 +409,159 @@ const UIService = {
                 MapService.updateNearestPointsList();
             }
         }, 1000);
+    },
+
+    /**
+     * Create carrier filter buttons dynamically
+     */
+    createCarrierFilters: function() {
+        const carrierFiltersContainer = document.getElementById('carrier-filters');
+        if (!carrierFiltersContainer) return;
+        
+        // Clear existing filters
+        carrierFiltersContainer.innerHTML = '';
+        
+        // Add "All" filter first
+        const allFilterBtn = document.createElement('div');
+        allFilterBtn.className = 'carrier-logo active';
+        allFilterBtn.setAttribute('data-carrier', 'all');
+        allFilterBtn.title = 'All carriers';
+        allFilterBtn.innerHTML = '<img src="img/all-carriers.png" alt="All carriers">';
+        
+        allFilterBtn.addEventListener('click', () => {
+            // Remove active class from all carrier logos
+            document.querySelectorAll('.carrier-logo').forEach(logo => {
+                logo.classList.remove('active');
+            });
+            
+            // Add active class to clicked logo
+            allFilterBtn.classList.add('active');
+            
+            // Apply filter
+            if (MarkersService && typeof MarkersService.filterByCarrier === 'function') {
+                MarkersService.filterByCarrier('all');
+            }
+        });
+        
+        carrierFiltersContainer.appendChild(allFilterBtn);
+        
+        // Add carrier-specific filters
+        if (Config.carriers) {
+            Object.entries(Config.carriers).forEach(([carrierId, carrier]) => {
+                const filterBtn = document.createElement('div');
+                filterBtn.className = 'carrier-logo';
+                filterBtn.setAttribute('data-carrier', carrierId);
+                filterBtn.title = carrier.name;
+                filterBtn.innerHTML = `<img src="${carrier.logo}" alt="${carrier.name}">`;
+                
+                filterBtn.addEventListener('click', () => {
+                    // Remove active class from all carrier logos
+                    document.querySelectorAll('.carrier-logo').forEach(logo => {
+                        logo.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked logo
+                    filterBtn.classList.add('active');
+                    
+                    // Apply filter
+                    if (MarkersService && typeof MarkersService.filterByCarrier === 'function') {
+                        MarkersService.filterByCarrier(carrierId);
+                    }
+                });
+                
+                carrierFiltersContainer.appendChild(filterBtn);
+            });
+        }
+    },
+
+    /**
+     * Initialize carrier filter panel
+     */
+    initializeCarrierPanel: function() {
+        const carrierPanel = document.getElementById('carrier-panel');
+        if (!carrierPanel) return;
+        
+        // Clear existing content
+        carrierPanel.innerHTML = '';
+        
+        // Add "All" option
+        const allDiv = document.createElement('div');
+        allDiv.className = 'carrier-logo active';
+        allDiv.setAttribute('data-carrier', 'all');
+        allDiv.innerHTML = '<span>Wszystkie</span>';
+        allDiv.addEventListener('click', (e) => {
+            // Remove active class from all filters
+            document.querySelectorAll('.carrier-logo').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Add active class to clicked filter
+            e.currentTarget.classList.add('active');
+            
+            // Apply filter but with error handling
+            try {
+                if (MarkersService && typeof MarkersService.filterByCarrier === 'function') {
+                    // Make sure MapService.map is initialized
+                    if (!MapService.map) {
+                        console.error('Map is not initialized');
+                        MapService.initialize();
+                    }
+                    
+                    // Now filter the markers
+                    MarkersService.filterByCarrier('all');
+                } else {
+                    console.error('MarkersService.filterByCarrier not available');
+                }
+            } catch (err) {
+                console.error('Error filtering by carrier:', err);
+            }
+        });
+        carrierPanel.appendChild(allDiv);
+        
+        // Add configured carriers
+        for (const carrierId in Config.carriers) {
+            const carrier = Config.carriers[carrierId];
+            const carrierDiv = document.createElement('div');
+            carrierDiv.className = 'carrier-logo';
+            carrierDiv.setAttribute('data-carrier', carrierId);
+            
+            // Create content based on available info
+            if (carrier.logo) {
+                carrierDiv.innerHTML = `<img src="${carrier.logo}" alt="${carrier.name}" title="${carrier.name}">`;
+            } else {
+                carrierDiv.innerHTML = `<span style="background-color:${carrier.color}">${carrier.name}</span>`;
+            }
+            
+            // Add click handler with proper error handling
+            carrierDiv.addEventListener('click', (e) => {
+                // Remove active class from all filters
+                document.querySelectorAll('.carrier-logo').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                // Add active class to clicked filter
+                e.currentTarget.classList.add('active');
+                
+                // Apply filter with error handling
+                try {
+                    if (MarkersService && typeof MarkersService.filterByCarrier === 'function') {
+                        // Make sure MapService.map is initialized
+                        if (!MapService.map) {
+                            console.error('Map is not initialized');
+                            MapService.initialize();
+                        }
+                        
+                        // Now filter the markers
+                        MarkersService.filterByCarrier(carrierId);
+                    } else {
+                        console.error('MarkersService.filterByCarrier not available');
+                    }
+                } catch (err) {
+                    console.error('Error filtering by carrier:', err);
+                }
+            });
+            
+            carrierPanel.appendChild(carrierDiv);
+        }
     }
 };

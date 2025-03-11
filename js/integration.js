@@ -133,7 +133,7 @@ const IntegrationService = {
     },
     
     /**
-     * Ładowanie punktów w aktualnie widocznym obszarze mapy
+     * Load points in current viewport from all carriers
      */
     loadPointsInViewport: function() {
         // Skip if recent call (throttle)
@@ -143,87 +143,101 @@ const IntegrationService = {
         }
         this._lastLoadTime = Date.now();
         
-        console.log("Loading points in viewport");
-        
-        // Only load if we're at an appropriate zoom level
+        // Check zoom level for performance reasons
         const currentZoom = MapService.map.getZoom();
-        if (currentZoom < 8) { // Don't load specific points at far-out zoom levels
+        if (currentZoom < 8) {
             console.log("Zoom level too low for viewport loading");
             return;
         }
         
         console.log("LOADING POINTS IN VIEWPORT STARTED");
         
-        // Check if MapService is available
-        if (!MapService || !MapService.map) {
-            console.error("MapService or map not available");
-            return;
+        // Important: Create a backup of the current marker cluster
+        if (MarkersService.markerClusterGroup) {
+            this._tempMarkerCluster = MarkersService.markerClusterGroup;
         }
         
-        // Get current map bounds
-        const bounds = MapService.map.getBounds();
-        console.log("Current map bounds:", bounds);
+        // Use the carrier service to load all points
+        CarrierService.loadAllCarrierPoints()
+            .then(allPoints => {
+                console.log(`Loaded ${allPoints.length} total points from all carriers`);
+                
+                // Update points in marker service
+                MarkersService.setPoints(allPoints);
+                
+                // Create new markers efficiently
+                this._addNewMarkersWithoutRemovingOld();
+                
+                // Build search index
+                if (SearchService && typeof SearchService.buildSearchIndex === 'function') {
+                    console.log("Building search index");
+                    SearchService.buildSearchIndex(allPoints);
+                }
+            })
+            .catch(error => {
+                console.error("Error loading points in viewport:", error);
+            });
+    },
+    
+    /**
+     * Add new markers without removing old ones first (smoother transition)
+     */
+    _addNewMarkersWithoutRemovingOld: function() {
+        // Create a new marker cluster group
+        const newClusterGroup = L.markerClusterGroup({
+            maxClusterRadius: 100,
+            spiderfyOnMaxZoom: false,
+            disableClusteringAtZoom: 18,
+            chunkedLoading: true,
+            chunkDelay: 50,
+            chunkInterval: 100,
+            zoomToBoundsOnClick: true,
+            iconCreateFunction: (cluster) => MarkersService.createCustomClusterIcon(cluster)
+        });
         
-        // Calculate center and radius
-        const center = bounds.getCenter();
-        const radius = Math.max(
-            MapService.map.distance(bounds.getNorthWest(), bounds.getNorthEast()) / 2000,
-            MapService.map.distance(bounds.getNorthWest(), bounds.getSouthWest()) / 2000
+        // Filter points for the current viewport
+        const bounds = MapService.map.getBounds().pad(0.5);
+        const viewportPoints = MarkersService.allPoints.filter(point => 
+            point && point.latitude && point.longitude && 
+            bounds.contains([point.latitude, point.longitude])
         );
         
-        console.log("Search center:", center, " radius:", radius);
-        
-        // Fetch points from API based on viewport
-        try {
-            console.log("Calling API to fetch points");
-            
-            // Check if ApiService is available
-            if (!ApiService || typeof ApiService.fetchPointsFromUrl !== 'function') {
-                console.error("ApiService or fetchPointsFromUrl not available");
-                return;
-            }
-            
-            ApiService.fetchPointsFromUrl(Config.api.urls.pl)
-                .then(points => {
-                    console.log(`API returned ${points.length} points`);
-                    
-                    // Check if MarkersService is available
-                    if (!MarkersService) {
-                        console.error("MarkersService not available");
-                        return;
-                    }
-                    
-                    // IMPORTANT: Save existing DPD points before updating
-                    const existingDPDPoints = MarkersService.allPoints.filter(point => 
-                        point && point.name && point.name.toLowerCase().includes('dpd')
-                    );
-                    console.log(`Preserving ${existingDPDPoints.length} existing DPD points`);
-                    
-                    // Check if required function exists
-                    if (typeof MarkersService.setPointsPreservingDPD !== 'function') {
-                        console.error("MarkersService.setPointsPreservingDPD not defined");
-                        // Fallback: just add the DPD points
-                        MarkersService.allPoints = [...points, ...existingDPDPoints];
-                    } else {
-                        // Update markers with both new points and saved DPD points
-                        MarkersService.setPointsPreservingDPD(points, existingDPDPoints);
-                    }
-                    
-                    // Add markers to map
-                    MarkersService.addMarkers('all');
-                    
-                    // Build search index
-                    if (SearchService && typeof SearchService.buildSearchIndex === 'function') {
-                        console.log("Building search index");
-                        SearchService.buildSearchIndex(points);
-                    }
-                })
-                .catch(error => {
-                    console.error("Error loading points in viewport:", error);
-                });
-        } catch (err) {
-            console.error("Error in loadPointsInViewport:", err);
+        // Sample if too many points
+        let pointsToAdd = viewportPoints;
+        if (viewportPoints.length > 5000) {
+            const sampling = 5000 / viewportPoints.length;
+            pointsToAdd = viewportPoints.filter(() => Math.random() < sampling);
         }
+        
+        console.log(`Creating markers for ${pointsToAdd.length} points`);
+        
+        // Create markers all at once
+        const markers = [];
+        pointsToAdd.forEach(point => {
+            if (point && point.latitude && point.longitude) {
+                // Create marker but don't add directly to cluster
+                const marker = MarkersService.createMarker(point);
+                markers.push(marker);
+            }
+        });
+        
+        // Add markers to new cluster
+        newClusterGroup.addLayers(markers);
+        
+        // Add new cluster to map
+        MapService.map.addLayer(newClusterGroup);
+        
+        // ONLY NOW remove the old cluster group
+        if (this._tempMarkerCluster) {
+            MapService.map.removeLayer(this._tempMarkerCluster);
+            this._tempMarkerCluster = null;
+        }
+        
+        // Update the reference
+        MarkersService.markerClusterGroup = newClusterGroup;
+        
+        console.log(`Added ${markers.length} markers to map`);
+        Utils.updateStatus(`Wyświetlono ${markers.length} punktów`, false);
     },
     
     /**
@@ -231,13 +245,10 @@ const IntegrationService = {
      * @param {Object} point - Wybrany punkt
      */
     selectPoint: function(point) {
-        if (!point) {
-            console.error('No point provided to selectPoint');
-            return;
-        }
-
+        if (!point) return;
+        
         if (this.params.mode === 'modal') {
-            // Przygotuj dane do przekazania
+            // Prepare data to send to parent
             const pointData = {
                 action: 'selectPoint',
                 id: point.id,
@@ -251,14 +262,11 @@ const IntegrationService = {
                 fullData: point
             };
             
-            // Wyślij dane do rodzica
+            // Send data to parent
             window.parent.postMessage(pointData, '*');
-        } else {
-            // W trybie standalone wykonaj standardową akcję
-            if (UIService && typeof UIService.selectPoint === 'function') {
-                UIService.selectPoint(point);
-            }
         }
+        
+        // No else branch needed since we're not showing the selection panel
     },
     
     /**

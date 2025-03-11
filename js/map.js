@@ -143,23 +143,30 @@ const MapService = {
     },
     
     /**
-     * Dostosowanie widoku mapy do wybranego kraju
-     * @param {string} countryCode - Kod kraju
+     * Fit map view to a specific country
+     * @param {string} countryCode - ISO country code
      */
-    fitToCountry(countryCode) {
-        console.log('Fitting to country:', countryCode);
+    fitToCountry: function(countryCode) {
+        console.log(`Fitting to country: ${countryCode}`);
         
-        // Dodaj zabezpieczenie
-        if (!Config || !Config.mapDefaults || !Config.mapDefaults.countryBounds) {
-            console.error('Config.mapDefaults.countryBounds is missing!');
-            return;
-        }
+        const countryBounds = {
+            'pl': [[49.0020, 14.1224], [55.0336, 24.1458]],
+            'de': [[47.2740, 5.8663], [55.0585, 15.0419]],
+            'uk': [[49.9599, -8.6500], [58.6350, 1.7700]]
+        };
         
-        const bounds = Config.mapDefaults.countryBounds[countryCode];
-        if (bounds) {
-            this.map.fitBounds(bounds);
-        } else {
-            console.warn(`No bounds defined for country: ${countryCode}`);
+        if (countryBounds[countryCode]) {
+            this.map.fitBounds(countryBounds[countryCode]);
+            
+            // IMPORTANT: Force map to redraw and update
+            setTimeout(() => {
+                this.map.invalidateSize();
+                
+                // Force marker display on initial load
+                if (MarkersService && MarkersService.allPoints.length > 0) {
+                    MarkersService.addMarkers('all');
+                }
+            }, 300);
         }
     },
     
