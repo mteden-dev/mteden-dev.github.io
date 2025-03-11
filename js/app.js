@@ -461,17 +461,6 @@ class App {
         console.log('Loading DPD points from:', Config.api.urls.dpd);
         Utils.updateStatus('Ładowanie punktów DPD...', true);
         
-        // Check if we already have DPD points to avoid duplicates
-        const hasDPDPoints = this.markersService.allPoints.some(point => 
-            point && point.name && point.name.toLowerCase().includes('dpd')
-        );
-        
-        if (hasDPDPoints) {
-            console.log('DPD points already loaded, skipping fetch');
-            Utils.updateStatus('Punkty DPD już załadowane', false);
-            return Promise.resolve();
-        }
-        
         return fetch(Config.api.urls.dpd)
             .then(response => {
                 if (!response.ok) {
@@ -487,16 +476,21 @@ class App {
                     return {...point, type: 'DPD'};
                 });
                 
-                // Remove any existing DPD points to avoid duplicates
-                const nonDPDPoints = this.markersService.allPoints.filter(point => 
-                    !(point && point.name && point.name.toLowerCase().includes('dpd'))
-                );
+                // Add to existing points but avoid duplicates
+                const existingIds = new Set(MarkersService.allPoints.map(p => p.id));
+                const newPoints = processedPoints.filter(p => !existingIds.has(p.id));
                 
-                // Add to existing points
-                this.markersService.setPoints([...nonDPDPoints, ...processedPoints]);
+                MarkersService.allPoints = [...MarkersService.allPoints, ...newPoints];
+                console.log(`Added ${newPoints.length} new DPD points to total collection`);
                 
-                Utils.updateStatus(`Załadowano ${processedPoints.length} punktów DPD`, false);
-                return processedPoints;
+                // Re-render all points if in "all" view
+                const activeLogo = document.querySelector('.carrier-logo.active');
+                if (activeLogo && activeLogo.getAttribute('data-carrier') === 'all') {
+                    MarkersService.filterByCarrier('all');
+                }
+                
+                Utils.updateStatus(`Załadowano ${newPoints.length} punktów DPD`, false);
+                return newPoints;
             })
             .catch(error => {
                 console.error('Error loading DPD points:', error);

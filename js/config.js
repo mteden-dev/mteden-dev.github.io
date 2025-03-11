@@ -1,3 +1,4 @@
+// @ts-nocheck
 console.log('Defining Config');
 
 /**

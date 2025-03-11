@@ -15,13 +15,16 @@ body {
 
 #map {
     width: 100%;
-    height: 100vh;
-    z-index: 1;
+    height: 100%;
     position: absolute;
+    transform: translate3d(0,0,0); /* Enable hardware acceleration */
+    will-change: transform; /* Hint to browser about animation */
+    z-index: 1;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
+    backface-visibility: hidden; /* Reduce repaints */
 }
 
 .header {
@@ -901,7 +904,7 @@ select {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background-color: #3498db;
+    /* Removing this hard-coded blue background-color: #3498db; */
     color: white;
     font-weight: bold;
     display: flex;
@@ -922,4 +925,66 @@ select {
 .modal-content {
     flex: 1;
     position: relative; /* For absolute positioning of map */
+}
+
+/* Custom cluster icon styles */
+.custom-cluster-icon {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    will-change: transform;
+    transform: translate3d(0,0,0);
+}
+
+.custom-cluster-icon svg {
+    filter: drop-shadow(0px 0px 3px rgba(0,0,0,0.4));
+}
+
+/* Optimize marker rendering */
+.leaflet-marker-icon {
+    will-change: transform;
+    transform: translate3d(0,0,0);
+}
+
+/* Optimize popup rendering */
+.leaflet-popup {
+    will-change: transform;
+}
+
+/* Optimize transitions during map movement */
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-zoom-anim .leaflet-zoom-animated {
+    will-change: transform, opacity;
+    transition-duration: 0.15s; /* Make transitions faster */
+}
+
+/* Hide markers during animation for better performance */
+.map-dragging .leaflet-marker-icon:not(.numbered-marker) {
+    opacity: 0.5;
+    transition: opacity 0.1s;
+}
+
+/* Map performance optimizations */
+#map {
+    transform: translate3d(0,0,0);   /* Hardware acceleration */
+    will-change: transform;          /* Hint browser about changes */
+    backface-visibility: hidden;     /* Reduce repaints */
+}
+
+/* Optimize markers during drag */
+.map-dragging .leaflet-marker-icon:not(.numbered-marker) {
+    opacity: 0.5;
+    transition: opacity 0.1s;
+}
+
+/* Optimize clusters */
+.marker-cluster {
+    transform: translate3d(0,0,0);
+    will-change: transform;
+}
+
+/* Reduce repaints during animations */
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-zoom-anim .leaflet-zoom-animated {
+    will-change: transform, opacity;
+    transition-duration: 0.15s;
 }

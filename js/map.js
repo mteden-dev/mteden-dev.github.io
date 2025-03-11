@@ -9,58 +9,48 @@ const MapService = {
     map: null,
     markerCluster: null,
     markers: [],
+    numberedMarkers: [],
     
-    initialize() {
+    /**
+     * Initialize the map
+     */
+    initialize: function() {
         console.log('Initializing map service');
         
         try {
-            // Inicjalizacja mapy
+            // Create map with optimized settings
             this.map = L.map('map', {
-                zoomControl: false
-            }).setView(
-                Config.mapDefaults.center, 
-                Config.mapDefaults.zoom
-            );
-            
-            // Add zoom control to bottom right corner
-            L.control.zoom({
-                position: 'bottomright'
-            }).addTo(this.map);
-            
-            // Dodanie warstwy kafli OpenStreetMap
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(this.map);
-            
-            // Inicjalizacja klastra markerów
-            this.markerCluster = L.markerClusterGroup({
-                maxClusterRadius: 80,
-                spiderfyOnMaxZoom: false,
-                disableClusteringAtZoom: 17,
-                chunkedLoading: true,
-                zoomToBoundsOnClick: true
+                center: Config.mapDefaults.center,
+                zoom: Config.mapDefaults.zoom,
+                minZoom: Config.mapDefaults.minZoom,
+                maxZoom: Config.mapDefaults.maxZoom,
+                zoomSnap: 0.5,               // Allow finer zoom increments
+                wheelDebounceTime: 200,      // Debounce wheel events
+                preferCanvas: true,          // Use Canvas for better performance
+                renderer: L.canvas()         // Force canvas renderer
             });
-            this.map.addLayer(this.markerCluster);
             
-            // Dopasuj widok do wybranego kraju
+            // Add tile layer with optimizations
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                updateWhenIdle: true,        // Only update when panning stops
+                updateWhenZooming: false,    // Don't update while zooming
+                maxNativeZoom: 19,
+                minZoom: Config.mapDefaults.minZoom,
+                maxZoom: Config.mapDefaults.maxZoom
+            }).addTo(this.map);
+            
+            // Setup events
+            this.setupMapEvents();
+            
+            // Add legend
+            this.addLegend();
+            
+            console.log('Map initialized successfully');
+            
+            // Fit to initial country
             this.fitToCountry('pl');
             
-            // Properly bind 'this' for the event handler
-            const self = this;
-            this.map.on('zoomend moveend', function() {
-                console.log("Map zoom/move event - current zoom:", self.map.getZoom());
-                // Use a short delay to ensure all map operations finish
-                setTimeout(function() {
-                    self.updateNearestPointsList();
-                }, 100);
-            });
-            
-            // Initial update to set the correct state
-            setTimeout(function() {
-                self.updateNearestPointsList();
-            }, 1000);
-            
-            return this.map;
         } catch (error) {
             console.error('Error initializing map:', error);
         }
@@ -388,10 +378,28 @@ const MapService = {
     addNumberedMarker: function(point, number) {
         if (!point.latitude || !point.longitude) return;
         
-        // Create a custom numbered icon
+        // Determine marker color based on point type/name
+        let markerColor = '#f39c12'; // default orange
+        
+        // Check if it's a DPD point by name first
+        if (point.name && point.name.toLowerCase().includes('dpd')) {
+            markerColor = '#BB0033'; // DPD color
+        } else if (point.type) {
+            // Otherwise check by type
+            const lowerType = point.type.toLowerCase();
+            if (lowerType.includes('inpost') || lowerType.includes('paczkomat')) {
+                markerColor = '#e74c3c'; // red for InPost
+            } else if (lowerType.includes('dhl')) {
+                markerColor = '#3498db'; // blue for DHL
+            } else if (lowerType.includes('orlen')) {
+                markerColor = '#2ecc71'; // green for Orlen
+            }
+        }
+        
+        // Create a custom numbered icon with the appropriate color
         const numberedIcon = L.divIcon({
             className: 'numbered-marker',
-            html: `<div class="numbered-marker-inner">${number}</div>`,
+            html: `<div class="numbered-marker-inner" style="background-color: ${markerColor};">${number}</div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15]
         });
@@ -438,6 +446,82 @@ const MapService = {
                 this.map.removeLayer(marker);
             });
             this.numberedMarkers = [];
+        }
+    },
+
+    /**
+     * Helper function for debouncing events
+     * @param {Function} func - Function to debounce 
+     * @param {number} wait - Time to wait in ms
+     * @returns {Function} - Debounced function
+     */
+    debounce: function(func, wait) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    },
+
+    /**
+     * Setup map event handlers
+     */
+    setupMapEvents: function() {
+        // Debounced handler for map movements
+        const debouncedMoveEndHandler = this.debounce(() => {
+            console.log("Map move end (debounced)");
+            this.updateNearestPointsList();
+            
+            // If integration service has viewport loading
+            if (IntegrationService && typeof IntegrationService.loadPointsInViewport === 'function') {
+                IntegrationService.loadPointsInViewport();
+            }
+        }, 300); // 300ms delay
+        
+        // Add event listener using debounced handler
+        this.map.on('moveend', debouncedMoveEndHandler);
+        this.map.on('zoomend', debouncedMoveEndHandler);
+        
+        // Add performance optimization - reduce rendering on drag
+        this.map.on('dragstart', () => {
+            document.getElementById('map').style.opacity = '0.7';
+            document.getElementById('map').classList.add('map-dragging');
+        });
+        
+        this.map.on('dragend', () => {
+            document.getElementById('map').style.opacity = '1';
+            document.getElementById('map').classList.remove('map-dragging');
+        });
+    },
+
+    /**
+     * Add limited number of markers to the map for better performance
+     */
+    addLimitedMarkers: function(points, limit = 2000) {
+        console.log(`Adding up to ${limit} markers from ${points.length} total points`);
+        
+        // If too many points, sample them
+        let markersToAdd = points;
+        if (points.length > limit) {
+            // Random sampling
+            markersToAdd = [];
+            const samplingRate = limit / points.length;
+            
+            for (let i = 0; i < points.length; i++) {
+                if (Math.random() < samplingRate) {
+                    markersToAdd.push(points[i]);
+                }
+                
+                if (markersToAdd.length >= limit) break;
+            }
+            
+            console.log(`Sampled down to ${markersToAdd.length} markers`);
+        }
+        
+        // Use markers service to add the markers
+        if (MarkersService && typeof MarkersService.addMarkers === 'function') {
+            MarkersService.addMarkers(markersToAdd);
         }
     }
 };

@@ -19,120 +19,221 @@ const MarkersService = {
      * @param {Array} points - Tablica punktów
      */
     setPoints: function(points) {
-        this.allPoints = points;
+        // Check if there are DPD points to preserve
+        const existingDPDPoints = this.allPoints.filter(point => 
+            point && point.name && point.name.toLowerCase().includes('dpd')
+        );
+        
+        if (existingDPDPoints.length > 0) {
+            // If we have DPD points, use the method that preserves them
+            this.setPointsPreservingDPD(points, existingDPDPoints);
+        } else {
+            // Otherwise, just replace all points
+            this.allPoints = points;
+            this.markersById = {};
+        }
+    },
+    
+    /**
+     * Set points while preserving specific points (like DPD)
+     * @param {Array} newPoints - New points to add
+     * @param {Array} dpdPoints - DPD points to preserve
+     */
+    setPointsPreservingDPD: function(newPoints, dpdPoints) {
+        console.log(`Setting ${newPoints.length} points while preserving ${dpdPoints.length} DPD points`);
+        
+        // Create a set of IDs from the new points for quick lookup
+        const newPointIds = new Set(newPoints.map(p => p.id));
+        
+        // Filter out any DPD points that might already be in the new points to avoid duplicates
+        const uniqueDPDPoints = dpdPoints.filter(p => !newPointIds.has(p.id));
+        
+        console.log(`Adding ${uniqueDPDPoints.length} unique DPD points to ${newPoints.length} new points`);
+        
+        // Combine the new points with the preserved DPD points
+        this.allPoints = [...newPoints, ...uniqueDPDPoints];
+        
+        // Reset the markers by ID
         this.markersById = {};
     },
     
     /**
-     * Dodanie markerów na mapę
-     * @param {string|Array} cityFilterOrPoints - Filtr miasta lub tablica punktów
+     * Add markers with performance optimization
      */
     addMarkers: function(cityFilterOrPoints) {
-        console.log('Adding markers with:', cityFilterOrPoints);
+        console.log('Adding markers with:', typeof cityFilterOrPoints === 'object' ? `Array[${cityFilterOrPoints.length}]` : cityFilterOrPoints);
         
         // Remove existing markers
         if (this.markerClusterGroup) {
             MapService.map.removeLayer(this.markerClusterGroup);
+            this.markerClusterGroup = null; // Important: clear reference
         }
         
-        // Create new marker cluster group with explicit options
+        // Create new marker cluster group with optimized settings
         this.markerClusterGroup = L.markerClusterGroup({
-            maxClusterRadius: 80,
+            maxClusterRadius: 100,
             spiderfyOnMaxZoom: false,
-            disableClusteringAtZoom: 17,
+            disableClusteringAtZoom: 18,
             chunkedLoading: true,
-            zoomToBoundsOnClick: true
+            chunkDelay: 50,
+            chunkInterval: 100,
+            zoomToBoundsOnClick: true,
+            iconCreateFunction: (cluster) => this.createCustomClusterIcon(cluster)
         });
         
+        // IMPORTANT: Add cluster group to map BEFORE adding markers to it
+        MapService.map.addLayer(this.markerClusterGroup);
+        
+        // Get filtered points
         let filteredPoints;
         
-        // Handle different parameter types
         if (Array.isArray(cityFilterOrPoints)) {
-            console.log(`Received array of ${cityFilterOrPoints.length} points`);
             filteredPoints = cityFilterOrPoints;
-            this.allPoints = cityFilterOrPoints;
         } else {
-            console.log('Received city filter:', cityFilterOrPoints);
             const cityFilter = cityFilterOrPoints;
             filteredPoints = cityFilter === 'all'
                 ? this.allPoints
                 : this.allPoints.filter(point => point.city === cityFilter);
+        }
+        
+        // For very large datasets, limit points by viewport and sampling
+        let pointsToAdd = filteredPoints;
+        const currentZoom = MapService.map.getZoom();
+        const MAX_MARKERS = 5000;
+        
+        if (filteredPoints.length > MAX_MARKERS && currentZoom < 10) {
+            console.log(`Too many points (${filteredPoints.length}), limiting and sampling`);
             
-            console.log(`Filtered to ${filteredPoints.length} points for city: ${cityFilter}`);
-        }
-        
-        console.log(`Adding ${filteredPoints.length} markers to map`);
-        
-        // Debug: check first point to ensure it has coordinates
-        if (filteredPoints.length > 0) {
-            console.log('Sample point:', filteredPoints[0]);
-        }
-        
-        // Add markers for filtered points
-        let addedMarkers = 0;
-        filteredPoints.forEach(point => {
-            if (point.latitude && point.longitude) {
-                this.addSingleMarker(point);
-                addedMarkers++;
+            // First filter by viewport with buffer
+            const bounds = MapService.map.getBounds().pad(0.5);
+            
+            const viewportPoints = filteredPoints.filter(point => 
+                point && point.latitude && point.longitude && 
+                bounds.contains([point.latitude, point.longitude])
+            );
+            
+            console.log(`Filtered to ${viewportPoints.length} points in viewport`);
+            
+            // Then sample if still too many
+            if (viewportPoints.length > MAX_MARKERS) {
+                const sampling = MAX_MARKERS / viewportPoints.length;
+                pointsToAdd = viewportPoints.filter(() => Math.random() < sampling);
+                console.log(`Sampled to ${pointsToAdd.length} points`);
+            } else {
+                pointsToAdd = viewportPoints;
             }
-        });
-        console.log(`Actually added ${addedMarkers} markers with valid coordinates`);
+        }
         
-        // Add marker cluster group to map
-        MapService.map.addLayer(this.markerClusterGroup);
+        // Prepare temporary array to hold markers before adding them to the cluster
+        const tempMarkers = [];
         
-        // Update point counter
-        Utils.updateStatus(`Wyświetlono ${filteredPoints.length} punktów`, false);
+        // Add markers with batching for better performance
+        const BATCH_SIZE = 1000;
+        
+        const addBatch = (startIdx) => {
+            const endIdx = Math.min(startIdx + BATCH_SIZE, pointsToAdd.length);
+            
+            for (let i = startIdx; i < endIdx; i++) {
+                const point = pointsToAdd[i];
+                if (point && point.latitude && point.longitude) {
+                    // Create marker but don't add directly to cluster
+                    const marker = this.createMarker(point);
+                    tempMarkers.push(marker);
+                    
+                    // Store reference to marker
+                    this.markersById[point.id] = { marker, point };
+                }
+            }
+            
+            if (endIdx < pointsToAdd.length) {
+                // Schedule next batch
+                setTimeout(() => addBatch(endIdx), 10);
+            } else {
+                // All markers created, now add them all at once to the cluster
+                this.markerClusterGroup.addLayers(tempMarkers);
+                Utils.updateStatus(`Wyświetlono ${tempMarkers.length} punktów`, false);
+            }
+        };
+        
+        // Start adding in batches
+        addBatch(0);
     },
     
     /**
-     * Dodanie pojedynczego markera
-     * @param {Object} point - Punkt do dodania
+     * Create a marker without adding it to cluster
      */
-    addSingleMarker: function(point) {
-        if (!point.latitude || !point.longitude) {
-            console.warn("Skipping point without coordinates:", point.id);
-            return;
-        }
-        
-        // Store current point temporarily for marker icon creation
-        this.currentPoint = point;
-        
+    createMarker: function(point) {
         // Create marker
         const marker = L.marker([point.latitude, point.longitude], {
-            icon: this.getMarkerIcon(point.type)
+            icon: this.getSimplifiedMarkerIcon(point),
+            point: point
         });
         
-        // Clear temporary reference
-        this.currentPoint = null;
-        
-        // Create popup content
-        const popupContent = this.createPopupContent(point);
-        marker.bindPopup(popupContent);
-        
-        // Add click event listener to marker BEFORE adding it to the cluster
-        marker.on('click', function() {
-            console.log("Marker clicked:", point.id);
+        // Use event delegation pattern - only create popup when clicked
+        marker.on('click', () => {
+            if (!marker.getPopup()) {
+                const popupContent = this.createPopupContent(point);
+                marker.bindPopup(popupContent);
+            }
             
-            // Open the popup
             marker.openPopup();
             
-            // Call UIService.selectPoint directly
+            // Select point in UI
             if (UIService && typeof UIService.selectPoint === 'function') {
                 UIService.selectPoint(point);
-            } else {
-                console.error("UIService.selectPoint not available");
             }
         });
         
-        // Add to marker cluster
-        this.markerClusterGroup.addLayer(marker);
-        
-        // Store reference to marker for later use
-        if (!this.markersById) {
-            this.markersById = {};
+        return marker;
+    },
+    
+    /**
+     * Original addSingleMarker (now uses createMarker and adds directly to cluster)
+     */
+    addSingleMarker: function(point) {
+        if (!point.latitude || !point.longitude) {
+            return;
         }
+        
+        // Create marker
+        const marker = this.createMarker(point);
+        
+        // IMPORTANT: Only add to cluster if it exists and has been added to map
+        if (this.markerClusterGroup && this.markerClusterGroup._map) {
+            this.markerClusterGroup.addLayer(marker);
+        }
+        
+        // Store reference
         this.markersById[point.id] = { marker, point };
+    },
+
+    /**
+     * Get a simplified marker icon - faster than full getMarkerIcon
+     */
+    getSimplifiedMarkerIcon: function(point) {
+        // Determine color based on point type/name
+        let color = '#f39c12'; // default
+        
+        if (point.name && point.name.toLowerCase().includes('dpd')) {
+            color = '#BB0033'; // DPD
+        } else if (point.type) {
+            const type = point.type.toLowerCase();
+            if (type.includes('inpost') || type.includes('paczkomat')) {
+                color = '#e74c3c'; // InPost
+            } else if (type.includes('dhl')) {
+                color = '#3498db'; // DHL
+            } else if (type.includes('orlen')) {
+                color = '#2ecc71'; // Orlen
+            }
+        }
+        
+        // Use a simpler divIcon
+        return L.divIcon({
+            className: 'simple-marker',
+            html: `<div style="background:${color};"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+        });
     },
     
     /**
@@ -346,17 +447,160 @@ const MarkersService = {
     },
 
     /**
-     * Create a marker icon with the specified color
-     * @param {string} color - Hex color code
-     * @returns {L.DivIcon} - Leaflet div icon
+     * Create a simpler marker icon with the specified color
      */
     createMarkerIcon: function(color) {
+        // Use a simpler div icon with fewer DOM elements
         return L.divIcon({
-            className: 'custom-marker',
-            html: `<div style="background-color:${color};width:20px;height:20px;border-radius:50%;border:2px solid white;"></div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -12]
+            className: 'simple-marker',
+            html: `<div style="background:${color};"></div>`,
+            iconSize: [16, 16], // Smaller icon size (was 24x24)
+            iconAnchor: [8, 8]  // Adjusted anchor
         });
+    },
+
+    /**
+     * Create custom cluster icon based on the carriers contained within
+     * @param {L.MarkerCluster} cluster - The marker cluster
+     * @returns {L.DivIcon} - Custom icon for the cluster
+     */
+    createCustomClusterIcon: function(cluster) {
+        // Get all child markers
+        const markers = cluster.getAllChildMarkers();
+        const count = markers.length;
+        
+        // Count markers by carrier
+        const carrierCounts = {
+            inpost: 0,
+            dhl: 0,
+            orlen: 0,
+            dpd: 0,
+            other: 0
+        };
+        
+        // Count points by carrier
+        markers.forEach(marker => {
+            const point = marker.options.point || {};
+            
+            if (!point.type && !point.name) {
+                carrierCounts.other++;
+                return;
+            }
+            
+            const lowerType = point.type ? point.type.toLowerCase() : '';
+            const lowerName = point.name ? point.name.toLowerCase() : '';
+            
+            if (lowerType.includes('inpost') || lowerType.includes('paczkomat')) {
+                carrierCounts.inpost++;
+            } else if (lowerType.includes('dhl')) {
+                carrierCounts.dhl++;
+            } else if (lowerType.includes('orlen')) {
+                carrierCounts.orlen++;
+            } else if (lowerType.includes('dpd') || lowerName.includes('dpd')) {
+                carrierCounts.dpd++;
+            } else {
+                carrierCounts.other++;
+            }
+        });
+        
+        // Get carrier colors and percentages
+        const colors = {
+            inpost: '#e74c3c', // red
+            dhl: '#3498db',    // blue
+            orlen: '#2ecc71',  // green
+            dpd: '#BB0033',    // DPD color
+            other: '#f39c12'   // orange
+        };
+        
+        // Create SVG pie chart
+        let svgContent = '<svg width="100%" height="100%" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">';
+        
+        // If only one carrier type, just use a solid circle
+        const carrierTypes = Object.keys(carrierCounts).filter(c => carrierCounts[c] > 0);
+        if (carrierTypes.length === 1) {
+            const carrierType = carrierTypes[0];
+            svgContent += `<circle cx="20" cy="20" r="16" fill="${colors[carrierType]}" />`;
+        } else {
+            // Create pie chart segments for multiple carriers
+            let startAngle = 0;
+            
+            for (const carrier in carrierCounts) {
+                if (carrierCounts[carrier] > 0) {
+                    const percentage = carrierCounts[carrier] / count;
+                    const angle = percentage * 360;
+                    const endAngle = startAngle + angle;
+                    
+                    // Convert angles to radians
+                    const startRad = (startAngle - 90) * Math.PI / 180;
+                    const endRad = (endAngle - 90) * Math.PI / 180;
+                    
+                    // Calculate arc path
+                    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+                    
+                    const x1 = 20 + 16 * Math.cos(startRad);
+                    const y1 = 20 + 16 * Math.sin(startRad);
+                    const x2 = 20 + 16 * Math.cos(endRad);
+                    const y2 = 20 + 16 * Math.sin(endRad);
+                    
+                    svgContent += `<path d="M 20 20 L ${x1} ${y1} A 16 16 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${colors[carrier]}" />`;
+                    
+                    startAngle = endAngle;
+                }
+            }
+        }
+        
+        // Add count text
+        svgContent += `
+            <circle cx="20" cy="20" r="12" fill="white" fill-opacity="0.7" />
+            <text x="20" y="24" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold">${count}</text>
+        </svg>`;
+        
+        return L.divIcon({
+            html: svgContent,
+            className: 'custom-cluster-icon',
+            iconSize: L.point(40, 40),
+            iconAnchor: L.point(20, 20)
+        });
+    },
+
+    /**
+     * Add markers only in the current viewport
+     * @param {Array} points - All available points
+     */
+    addMarkersInViewport: function(points) {
+        // Get current map bounds with a buffer
+        const bounds = MapService.map.getBounds().pad(0.5); // 50% buffer around viewport
+        
+        // Filter points to only those in the current viewport
+        const viewportPoints = points.filter(point => {
+            return point && 
+                   point.latitude && 
+                   point.longitude && 
+                   bounds.contains([point.latitude, point.longitude]);
+        });
+        
+        console.log(`Filtered ${points.length} points to ${viewportPoints.length} in viewport`);
+        
+        // Add only viewport points to map
+        this.addMarkers(viewportPoints);
+    },
+
+    /**
+     * Clear all markers
+     */
+    clearMarkers: function() {
+        // Remove marker cluster from map
+        if (this.markerClusterGroup) {
+            MapService.map.removeLayer(this.markerClusterGroup);
+            this.markerClusterGroup.clearLayers();
+        }
+        
+        // Clear marker references
+        this.markersById = {};
+        
+        // Run garbage collection hint (for some browsers)
+        if (window.gc) {
+            window.gc();
+        }
     }
 };
